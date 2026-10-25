@@ -1,0 +1,27 @@
+appId: dev.galsan.usdxcontrol
+productName: uSDX Control
+artifactName: usdxcontrol-${version}.${ext}
+directories:
+  output: dist-instalador
+files:
+  - out/**
+asar: true
+asarUnpack:
+  - node_modules/@serialport/**/prebuilds/**
+  - node_modules/serialport/**/prebuilds/**
+linux:
+  target:
+    - AppImage
+    - deb
+  category: Utility
+  maintainer: jgalera
+win:
+  target:
+    - nsis
+nsis:
+  oneClick: true
+  createDesktopShortcut: always
+mac:
+  target:
+    - dmg
+  category: public.app-category.utilities

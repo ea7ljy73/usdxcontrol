@@ -1,0 +1,4 @@
+allowBuilds:
+  - "electron"
+  - "@serialport/bindings-cpp"
+  - "electron-winstaller"

@@ -1,0 +1,52 @@
+{
+  "name": "usdxcontrol",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "main": "out/main/index.js",
+  "description": "Estación de control para transceptores uSDX por CAT/UART",
+  "author": "jgalera",
+  "homepage": "https://github.com/galsan/usdxcontrol",
+  "scripts": {
+    "dev": "vite",
+    "dev:desktop": "electron-vite dev",
+    "build": "tsc -b && vite build",
+    "build:desktop": "electron-vite build",
+    "lint": "oxlint",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:e2e": "playwright test --project=chromium --project=movil",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:update": "playwright test --update-snapshots",
+    "test:desktop": "electron-vite build && playwright test --project=electron",
+    "dist": "electron-vite build && electron-builder"
+  },
+  "dependencies": {
+    "@tailwindcss/vite": "^4.3.3",
+    "clsx": "^2.1.1",
+    "radix-ui": "^1.8.1",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "serialport": "^13.0.0",
+    "tailwind-merge": "^3.7.0",
+    "tailwindcss": "^4.3.3"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.14.0",
+    "@playwright/test": "^1.64.1",
+    "@testing-library/jest-dom": "^7.0.1",
+    "@testing-library/react": "^16.3.3",
+    "@types/node": "^24.19.2",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.2",
+    "electron": "^45.0.0",
+    "electron-builder": "^26.15.3",
+    "electron-vite": "^6.0.0",
+    "jsdom": "^30.1.3",
+    "oxlint": "^1.88.0",
+    "typescript": "~6.0.3",
+    "vite": "^8.3.4",
+    "vitest": "^5.0.5"
+  }
+}
