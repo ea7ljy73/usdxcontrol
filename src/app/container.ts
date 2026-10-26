@@ -76,7 +76,7 @@ const listPorts = link.listPorts
 const portSelection: PortSelection | null =
   listPorts ? { list: () => listPorts() } : null
 
-const session = createRadioSession(link, { extended: useMock })
+const session = createRadioSession(link)
 
 // El simulador de audio "escucha" donde esté sintonizada la radio simulada.
 const simulatedTuning = () => {

@@ -670,20 +670,21 @@ export function Panadapter({
         )
       )}
 
-      <nav aria-label="Menú del panadaptador" className="absolute top-0 left-0 z-20 flex w-16 flex-col">
+      <nav aria-label="Menú del panadaptador" className="absolute top-1 left-1 z-20 flex w-16 flex-col gap-1">
         <Button
           variant="ghost"
           aria-label={menuOpen ? 'Ocultar menú' : 'Mostrar menú'}
           aria-expanded={menuOpen}
           onClick={() => setMenuOpen((open) => !open)}
-          className="h-8 w-9 bg-white/25 px-0 text-navy hover:bg-white/40 hover:text-navy"
+          className="h-8 w-9 border border-line bg-chrome/85 px-0 text-fg backdrop-blur-sm hover:bg-tile hover:text-fg"
         >
           <ArrowIcon open={menuOpen} />
         </Button>
         {menuOpen && (
-          <div className="flex flex-col gap-px border-r border-b border-navy-line/70 bg-navy-line/70">
+          <div className="flex flex-col gap-1 rounded border border-line bg-chrome/85 p-1 backdrop-blur-sm">
             <Button
-              className={cn('h-11 w-full px-0 text-base', audioActive && 'bg-navy-hover text-rx')}
+              variant="tile"
+              className={cn('h-10 w-full px-0 text-sm', audioActive && 'text-rx')}
               aria-label={audioActive ? 'Desconectar audio' : 'Conectar audio'}
               onClick={onToggleAudio}
             >
@@ -691,7 +692,8 @@ export function Panadapter({
             </Button>
             <Button
               data-testid="dial-lock"
-              className={cn('h-11 w-full px-0 text-sm', locked && 'bg-navy-hover text-slice')}
+              variant="tile"
+              className="h-10 w-full px-0 text-sm"
               aria-label={locked ? 'Soltar dial' : 'Fijar dial, mover con los cursores'}
               aria-pressed={locked}
               disabled={disabled}
@@ -702,7 +704,8 @@ export function Panadapter({
             {onTraceChange && (
               <Button
                 data-testid="spectrum-trace"
-                className="h-11 w-full px-0 text-sm"
+                variant="tile"
+                className="h-10 w-full px-0 text-sm"
                 aria-label={`Espectro: ${traceOption.name}, clic para cambiar`}
                 onClick={() => onTraceChange(TRACES[(TRACES.indexOf(traceOption) + 1) % TRACES.length].id)}
               >
@@ -711,7 +714,8 @@ export function Panadapter({
             )}
             <Button
               data-testid="spectrum-zoom"
-              className="h-11 w-full px-0 text-sm"
+              variant="tile"
+              className="h-10 w-full px-0 text-sm"
               aria-label={`${option.label}, ancho del panadaptador, clic para cambiar`}
               onClick={cycleZoom}
             >

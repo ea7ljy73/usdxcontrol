@@ -72,7 +72,7 @@ describe('catSimulatorRadioLink', () => {
     expect(received.join('')).toBe('FA00007074000;')
     link.send('RX;FA;MD;')
     await vi.advanceTimersByTimeAsync(50)
-    expect(link.state()).toEqual({ frequency: 7_200_000, mode: 'CW', tx: false, volume: 40, agc: 1, nr: 0 })
+    expect(link.state()).toEqual({ frequency: 7_200_000, mode: 'CW', tx: false, volume: 8, agc: 1, nr: 0 })
     expect(received.join('')).toContain('RX0;FA00007200000;MD3;')
   })
 
@@ -88,15 +88,26 @@ describe('catSimulatorRadioLink', () => {
     expect(link.state().tx).toBe(true)
   })
 
-  it('responde ?; a comandos desconocidos y echo a los shims', async () => {
+  it('responde ?; a comandos desconocidos y como el firmware v2.2.0 al resto', async () => {
     vi.useFakeTimers()
     const link = createCatSimulatorLink()
     const received: string[] = []
     link.onData((chunk) => received.push(chunk))
     await link.open()
-    link.send('ZZ;AG0;VX2;CTR56;')
+    link.send('ZZ;AG0;GT002;GT;RL09;EX0000000;CTR56;')
     await vi.advanceTimersByTimeAsync(50)
-    expect(received.join('')).toBe('?;AG0;VX2;?;')
+    expect(received.join('')).toBe('?;AG0128;GT002;?;EX00000008;?;')
+  })
+
+  it('imita el firmware de serie: AG0 en eco y sin EX', async () => {
+    vi.useFakeTimers()
+    const link = createCatSimulatorLink({ firmware: 'legacy' })
+    const received: string[] = []
+    link.onData((chunk) => received.push(chunk))
+    await link.open()
+    link.send('AG0;EX0000000;SM0;')
+    await vi.advanceTimersByTimeAsync(50)
+    expect(received.join('')).toBe('AG0;?;?;')
   })
 
   it('conserva el comando parcial entre escrituras hasta cerrar la trama', async () => {

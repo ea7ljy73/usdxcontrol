@@ -13,6 +13,8 @@ type SimulatorState = {
 
 export type SimulatorOptions = {
   responseDelayMs?: number
+  // 'legacy' imita el firmware de serie (hasta v2.1.0): sin EX, SM, GT ni RL, y AG0 en eco.
+  firmware?: 'extended' | 'legacy'
   initial?: Partial<Omit<SimulatorState, 'volume' | 'agc' | 'nr'> & { volume?: number; agc?: number; nr?: number }>
 }
 
@@ -20,12 +22,12 @@ const buildIfFrame = (frequency: number, mode: RadioMode): string =>
   `IF${formatFrequencyDigits(frequency)}00000+0000000000${modeToCatDigit(mode)}0000000;`
 
 export const createCatSimulatorLink = (options: SimulatorOptions = {}): RadioLink & { state(): SimulatorState } => {
-  const { responseDelayMs = 10, initial = {} } = options
+  const { responseDelayMs = 10, firmware = 'extended', initial = {} } = options
   const state: SimulatorState = {
     frequency: initial.frequency ?? 7_074_000,
     mode: initial.mode ?? 'USB',
     tx: false,
-    volume: initial.volume ?? 40,
+    volume: initial.volume ?? 8,
     agc: initial.agc ?? 1,
     nr: initial.nr ?? 0,
   }
@@ -94,30 +96,45 @@ export const createCatSimulatorLink = (options: SimulatorOptions = {}): RadioLin
     if (command === 'ID') return 'ID020;'
     if (command === 'PS') return 'PS1;'
     if (command === 'AI' || command === 'AI0') return 'AI0;'
-    if (/^AG[0-9]$/.test(command) && command[2] === '0') return `${command};`
-    if (/^XT1$|^RT1$|^FL0$/.test(command)) {
-      return `${command};`
+    if (/^XT1$|^FL0$/.test(command)) return `${command};`
+    if (firmware === 'legacy') {
+      if (command === 'AG0' || /^RT1$|^VX[0-9]$/.test(command)) return `${command};`
+      return '?;'
     }
-    if (/^VX[0-9]$/.test(command)) return `${command};`
-    if (command === 'SM') {
-      const wobble = Math.round((Math.sin(Date.now() / 700) + 1) * 20 + Math.random() * 18)
-      return `SM${String(Math.min(255, 55 + wobble)).padStart(3, '0')};`
+    return processExtended(command)
+  }
+
+  // Firmware ampliado v2.2.0 (CAT.md): las escrituras no responden; fuera de rango, «?;».
+  const processExtended = (command: string): string => {
+    if (command === 'SM' || command === 'SM0') {
+      const wobble = Math.round((Math.sin(Date.now() / 700) + 1) * 3 + Math.random() * 3)
+      return `SM${String(Math.min(30, 8 + wobble)).padStart(5, '0')};`
     }
-    if (command === 'VO') return `VO${String(state.volume).padStart(2, '0')};`
-    if (command === 'AG') return `AG${state.agc};`
-    if (command === 'NR') return `NR${state.nr};`
-    if (/^VO[0-9][0-9]$/.test(command)) {
-      state.volume = Number(command.slice(2))
-      return `${command};`
+    if (command === 'EX0000000') return `EX0000000${state.volume};`
+    if (command === 'AG' || command === 'AG0') {
+      return `AG${String(state.volume > 15 ? 255 : state.volume * 16).padStart(4, '0')};`
     }
-    if (/^AG[0-3]$/.test(command)) {
-      state.agc = Number(command[2])
-      return `${command};`
+    if (/^AG0[0-9]{3}$/.test(command)) {
+      const level = Number(command.slice(3))
+      if (level > 255) return '?;'
+      state.volume = (level + 8) >> 4
+      return ''
     }
-    if (/^NR[0-4]$/.test(command)) {
-      state.nr = Number(command[2])
-      return `${command};`
+    if (command === 'GT') return `GT${String(state.agc).padStart(3, '0')};`
+    if (/^GT[0-9]{3}$/.test(command)) {
+      const value = Number(command.slice(2))
+      if (value > 2) return '?;'
+      state.agc = value
+      return ''
     }
+    if (command === 'RL') return `RL${String(state.nr).padStart(2, '0')};`
+    if (/^RL[0-9]{2}$/.test(command)) {
+      const value = Number(command.slice(2))
+      if (value > 8) return '?;'
+      state.nr = value
+      return ''
+    }
+    if (/^VX[0-9]$/.test(command)) return ''
     return '?;'
   }
 

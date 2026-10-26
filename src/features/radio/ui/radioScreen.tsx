@@ -27,7 +27,17 @@ import type { SerialPortChoice } from '../application/ports'
 import { MAX_FREQUENCY_HZ, MIN_FREQUENCY_HZ, formatFrequency } from '../domain/frequency'
 import { RADIO_MODES, type RadioMode } from '../domain/mode'
 import { audioViewFor, passbandFor } from '../domain/passband'
-import { AGC_LEVELS, clampNr, MAX_NR, meterPercent, sUnitLabel } from '../domain/receiver'
+import {
+  AGC_LEVELS,
+  MAX_VOLUME,
+  meterPercent,
+  meterRateOf,
+  nextAgc,
+  nextMeterRate,
+  nextNr,
+  sUnitLabel,
+  type MeterRate,
+} from '../domain/receiver'
 import { formatStep, nextStepIndex, stepsFrom, TUNING_STEPS } from '../domain/tuning'
 import { useRadioSession } from './useRadioSession'
 import { FrequencyEditor } from './frequencyEditor'
@@ -63,6 +73,10 @@ const HOLD_REPEAT_MS = 90
 const SCAN_INTERVAL_MS = 300
 const PREVIEW_DEBOUNCE_MS = 200
 
+
+// Cabecera de sección del panel lateral: etiqueta discreta, alineada a la izquierda.
+const SECTION_TITLE = 'px-3 pt-2 text-[11px] font-semibold tracking-[0.08em] text-muted uppercase'
+
 export function RadioScreen() {
   const { session, snapshot, linkKind, portSelection, spectrumSimulated, spectrumFeeds } = useRadioSession()
   const audio = useSpectrumFeed(spectrumFeeds.audio)
@@ -73,6 +87,11 @@ export function RadioScreen() {
     trace: 'relleno',
     audioScope: true,
   })
+  const [radioView, setRadioView] = useStoredState<{ meterRate: MeterRate }>('radio.view', { meterRate: 'normal' })
+  const meterRate = meterRateOf(radioView.meterRate)
+  useEffect(() => {
+    session.setMeterInterval(meterRate.ms)
+  }, [session, meterRate.ms])
   const sdrActive = sdrState.status === 'on' || sdrState.status === 'muted'
   const [sdrFeed] = useState(() => sdr.feed())
   const [stepIndex, setStepIndex] = useState(3)
@@ -434,7 +453,7 @@ export function RadioScreen() {
 
   return (
     <div className="flex min-h-svh flex-col bg-bg lg:h-svh">
-      <header className="flex flex-wrap items-center gap-x-4 gap-y-1.5 bg-chrome px-3 py-1.5">
+      <header className="flex flex-wrap items-center gap-x-4 gap-y-1.5 border-b border-line bg-chrome px-3 py-1.5">
         <h1 className="text-sm font-semibold">uSDX Control</h1>
 
         <label className="flex items-center gap-2" title="Volumen de la radio">
@@ -447,9 +466,9 @@ export function RadioScreen() {
             data-testid="volume"
             aria-label="Volumen"
             min={0}
-            max={99}
+            max={MAX_VOLUME}
             step={1}
-            value={snapshot.volume ?? 40}
+            value={snapshot.volume ?? 8}
             disabled={!extendedReady}
             onChange={(event) => session.setVolume(Number(event.target.value))}
             className="w-24 accent-(--color-accent) disabled:opacity-40 sm:w-28"
@@ -478,7 +497,7 @@ export function RadioScreen() {
               disabled={ports.length === 0}
               value={selectedPort}
               onChange={(event) => setSelectedPort(event.target.value)}
-              className="h-7 w-44 truncate rounded-md border border-navy-line bg-navy px-2 py-0 text-xs text-fg outline-none focus-visible:ring-2 focus-visible:ring-slice"
+              className="h-7 w-44 truncate rounded border border-line bg-tile px-2 py-0 text-xs text-fg outline-none focus-visible:ring-2 focus-visible:ring-slice"
             >
               {ports.length === 0 ? (
                 <option value="">Sin puertos serie</option>
@@ -542,6 +561,9 @@ export function RadioScreen() {
                     nr={snapshot.nr}
                     agc={snapshot.agc}
                     bandLabel={band?.label ?? null}
+                    controlsEnabled={extendedReady}
+                    onNrClick={() => session.setNr(nextNr(snapshot.nr))}
+                    onAgcClick={() => session.setAgc(nextAgc(snapshot.agc))}
                   />
                 )
               }
@@ -560,9 +582,9 @@ export function RadioScreen() {
             />
           )}
 
-          <section aria-label={`Slice ${activeVfo}`} className="flex flex-col gap-1 bg-panel p-1.5">
+          <section aria-label={`Slice ${activeVfo}`} className="flex flex-col gap-1 border-t border-line bg-panel p-1.5">
             <div className="flex items-stretch gap-1">
-              <Button
+              <Button variant="tile"
                 className="w-12 text-lg sm:w-16"
                 aria-label="Retroceder diez pasos"
                 disabled={!connected}
@@ -570,7 +592,7 @@ export function RadioScreen() {
               >
                 &lt;&lt;
               </Button>
-              <Button
+              <Button variant="tile"
                 className="w-12 text-lg sm:w-16"
                 aria-label="Bajar frecuencia"
                 disabled={!connected}
@@ -582,7 +604,7 @@ export function RadioScreen() {
               >
                 &lt;
               </Button>
-              <div className="flex min-w-0 flex-1 items-center justify-center gap-3 bg-instrument px-2 py-1.5">
+              <div className="flex min-w-0 flex-1 items-center justify-center gap-3 rounded border border-line bg-instrument px-2 py-1.5">
                 {editing ? (
                   <div
                     ref={editingRef}
@@ -693,7 +715,7 @@ export function RadioScreen() {
                   </>
                 )}
               </div>
-              <Button
+              <Button variant="tile"
                 className="w-12 text-lg sm:w-16"
                 aria-label="Subir frecuencia"
                 disabled={!connected}
@@ -705,7 +727,7 @@ export function RadioScreen() {
               >
                 &gt;
               </Button>
-              <Button
+              <Button variant="tile"
                 className="w-12 text-lg sm:w-16"
                 aria-label="Avanzar diez pasos"
                 disabled={!connected}
@@ -716,7 +738,7 @@ export function RadioScreen() {
             </div>
 
             <div className="grid grid-cols-3 gap-1 sm:grid-cols-6" role="group" aria-label="Paso y búsqueda">
-              <Button
+              <Button variant="tile"
                 data-testid="tuning-step"
                 aria-label={`Paso de sintonía ${formatStep(step)}, clic para cambiar`}
                 title="Paso de sintonía"
@@ -724,9 +746,8 @@ export function RadioScreen() {
               >
                 {formatStep(step)}
               </Button>
-              <Button
-                variant={scanDirection === -1 ? 'navy' : 'tile'}
-                aria-label="Scan hacia abajo"
+              <Button variant="tile"
+                                aria-label="Scan hacia abajo"
                 aria-pressed={scanDirection === -1}
                 disabled={!connected}
                 className="gap-1.5"
@@ -735,9 +756,8 @@ export function RadioScreen() {
                 <ScanDownIcon />
                 Scan
               </Button>
-              <Button
-                variant={scanDirection === 1 ? 'navy' : 'tile'}
-                aria-label="Scan hacia arriba"
+              <Button variant="tile"
+                                aria-label="Scan hacia arriba"
                 aria-pressed={scanDirection === 1}
                 disabled={!connected}
                 className="gap-1.5"
@@ -746,13 +766,13 @@ export function RadioScreen() {
                 <ScanUpIcon />
                 Scan
               </Button>
-              <Button aria-label="Editar frecuencia" title="Editar frecuencia" disabled={!connected} onClick={startEditing}>
+              <Button variant="tile" aria-label="Editar frecuencia" title="Editar frecuencia" disabled={!connected} onClick={startEditing}>
                 <PencilIcon />
               </Button>
               <Button variant="tile" aria-label="RIT 0, borrar RIT" disabled={!connected} onClick={() => session.clearRit()}>
                 RIT 0
               </Button>
-              <Button
+              <Button variant="tile"
                 data-testid="vfo-swap"
                 aria-label="A ⇄ B, intercambiar VFO A y B"
                 disabled={!connected}
@@ -764,14 +784,27 @@ export function RadioScreen() {
           </section>
         </main>
 
-        <aside aria-label="Controles de radio" className="flex flex-col gap-px bg-panel-deep lg:w-80 lg:overflow-y-auto">
+        <aside
+          aria-label="Controles de radio"
+          className="flex flex-col divide-y divide-line border-t border-line bg-panel lg:w-80 lg:overflow-y-auto lg:border-t-0 lg:border-l"
+        >
           <section aria-labelledby="rc-meter" className="bg-panel">
-            <h2 id="rc-meter" className="bg-navy px-3 py-1 text-center text-sm font-medium">
+            <h2 id="rc-meter" className={SECTION_TITLE}>
               RX
             </h2>
-            <div className="m-2 bg-instrument px-3 pt-2 pb-1">
+            <div className="mx-2 mt-1 mb-2 rounded border border-line bg-instrument px-3 pt-2 pb-1">
               <div className="flex items-baseline justify-between">
                 <span className="text-sm text-fg">S-Meter</span>
+                <button
+                  type="button"
+                  data-testid="meter-rate"
+                  title="Cada lectura del S-métrico se oye como un chasquido en el uSDX"
+                  aria-label={`Refresco ${meterRate.label}: cada ${meterRate.ms / 1000} s, clic para cambiar`}
+                  onClick={() => setRadioView((view) => ({ ...view, meterRate: nextMeterRate(meterRate.id) }))}
+                  className="mr-auto ml-2 rounded px-1.5 text-[11px] text-muted hover:bg-white/10 hover:text-fg focus-visible:ring-2 focus-visible:ring-slice focus-visible:outline-none"
+                >
+                  Refresco {meterRate.label}
+                </button>
                 <span className="text-sm text-fg tabular-nums">
                   {snapshot.meter !== null ? `${sUnitLabel(snapshot.meter)}${snapshot.tx ? ' · TX' : ''}` : '--'}
                 </span>
@@ -787,7 +820,7 @@ export function RadioScreen() {
                   className="mt-1.5 h-2.5 bg-white/10"
                 >
                   <div
-                    className={cn('h-full transition-[width] duration-150', snapshot.meter > 204 ? 'bg-tx' : 'bg-rx')}
+                    className={cn('h-full transition-[width] duration-150', meterPercent(snapshot.meter) > 80 ? 'bg-tx' : 'bg-rx')}
                     style={{ width: `${meterPercent(snapshot.meter)}%` }}
                   />
                 </div>
@@ -799,7 +832,7 @@ export function RadioScreen() {
               </div>
             </div>
             {/* El espectro de audio se puede plegar para dejar sitio; la elección se recuerda. */}
-            <div className={cn('mx-2 mb-2 bg-instrument px-3', spectrumView.audioScope ? 'pt-2 pb-1' : 'py-1')}>
+            <div className={cn('mx-2 mb-2 rounded border border-line bg-instrument px-3', spectrumView.audioScope ? 'pt-2 pb-1' : 'py-1')}>
               <button
                 type="button"
                 data-testid="audio-scope-toggle"
@@ -838,7 +871,7 @@ export function RadioScreen() {
                     value={snapshot.agc ?? 1}
                     disabled={!extendedReady}
                     onChange={(event) => session.setAgc(Number(event.target.value))}
-                    className="h-9 min-w-0 flex-1 bg-navy px-2 text-sm text-fg outline-none focus-visible:ring-2 focus-visible:ring-slice disabled:opacity-40"
+                    className="h-9 min-w-0 flex-1 rounded border border-line bg-tile px-2 text-sm text-fg outline-none focus-visible:ring-2 focus-visible:ring-slice disabled:opacity-40"
                   >
                     {AGC_LEVELS.map((name, level) => (
                       <option key={name} value={level}>
@@ -854,23 +887,20 @@ export function RadioScreen() {
                   disabled={!extendedReady}
                   className="h-9 w-24"
                   title="Reducción de ruido"
-                  onClick={() => {
-                    const current = snapshot.nr ?? 0
-                    session.setNr(current >= MAX_NR ? 0 : clampNr(current + 1))
-                  }}
+                  onClick={() => session.setNr(nextNr(snapshot.nr))}
                 >
                   NR {(snapshot.nr ?? 0).toString()}
                 </Button>
               </div>
-              {!snapshot.extended && <p className="text-xs text-fg">Volumen, AGC y NR requieren firmware ampliado</p>}
+              {!snapshot.extended && <p className="text-xs text-fg">Volumen, AGC y NR: firmware v2.2.0 o posterior</p>}
             </div>
           </section>
 
           <section aria-labelledby="rc-band" className="bg-panel">
-            <h2 id="rc-band" className="bg-navy px-3 py-1 text-center text-sm font-medium">
+            <h2 id="rc-band" className={SECTION_TITLE}>
               Band
             </h2>
-            <div className="grid grid-cols-5 gap-px p-2" role="group" aria-label="Bandas">
+            <div className="grid grid-cols-5 gap-1 px-2 pt-1 pb-2" role="group" aria-label="Bandas">
               {BANDS.map((entry) => {
                 const active = band?.id === entry.id
                 return (
@@ -892,10 +922,10 @@ export function RadioScreen() {
           </section>
 
           <section aria-labelledby="rc-mode" className="bg-panel">
-            <h2 id="rc-mode" className="bg-navy px-3 py-1 text-center text-sm font-medium">
+            <h2 id="rc-mode" className={SECTION_TITLE}>
               Mode
             </h2>
-            <div className="flex gap-1.5 p-2">
+            <div className="flex gap-1.5 px-2 pt-1 pb-2">
               <ToggleGroup
                 type="single"
                 value={snapshot.mode ?? ''}
@@ -910,7 +940,7 @@ export function RadioScreen() {
                   </ToggleGroupItem>
                 ))}
               </ToggleGroup>
-              <div className="grid flex-[2] grid-cols-2 gap-px" role="group" aria-label="Modos digitales">
+              <div className="grid flex-[2] grid-cols-2 gap-1" role="group" aria-label="Modos digitales">
                 {DIGI_MODES.map((mode) => {
                   const active = digiVisible && digiState.mode === mode
                   return (
@@ -932,10 +962,10 @@ export function RadioScreen() {
           </section>
 
           <section aria-labelledby="rc-vfo" className="bg-panel">
-            <h2 id="rc-vfo" className="bg-navy px-3 py-1 text-center text-sm font-medium">
+            <h2 id="rc-vfo" className={SECTION_TITLE}>
               VFO
             </h2>
-            <div className="flex flex-col gap-px p-2" role="group" aria-label="VFO">
+            <div className="flex flex-col gap-1 px-2 pt-1 pb-2" role="group" aria-label="VFO">
               {(['A', 'B'] as const).map((tag) => {
                 const stored = tag === 'A' ? vfoPair.a : vfoPair.b
                 const isActive = activeVfo === tag
@@ -951,7 +981,7 @@ export function RadioScreen() {
                   </span>
                 )
                 return isActive ? (
-                  <div key={tag} aria-label={`Receptor VFO ${tag}`} className="flex h-9 items-center gap-3 bg-instrument px-3">
+                  <div key={tag} aria-label={`Receptor VFO ${tag}`} className="flex h-9 items-center gap-3 rounded border border-line bg-instrument px-3">
                     {badge}
                     <span className="ml-auto text-xl font-light tabular-nums">
                       {snapshot.frequency === null ? '---' : formatFrequency(shown)}
@@ -975,10 +1005,10 @@ export function RadioScreen() {
           </section>
 
           <section aria-labelledby="rc-tx" className="flex flex-col bg-panel lg:flex-1">
-            <h2 id="rc-tx" className="bg-navy px-3 py-1 text-center text-sm font-medium">
+            <h2 id="rc-tx" className={SECTION_TITLE}>
               TX
             </h2>
-            <div className="flex flex-1 flex-col gap-2 p-2">
+            <div className="flex flex-1 flex-col gap-2 px-2 pt-1 pb-2">
               <Button
                 data-testid="ptt"
                 variant={snapshot.tx ? 'tx' : 'navy'}

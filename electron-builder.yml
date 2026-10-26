@@ -27,6 +27,10 @@ linux:
   maintainer: jgalera
   syncDesktopName: true
   synopsis: Control CAT y FT8 para el uSDX
+# Además de lo de siempre, deja el RTL-SDR libre del driver de TV del kernel y accesible por USB.
+deb:
+  afterInstall: build/linux/after-install.sh
+  afterRemove: build/linux/after-remove.sh
 win:
   target:
     - target: nsis

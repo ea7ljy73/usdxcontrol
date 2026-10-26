@@ -100,7 +100,7 @@ export function BandActivity() {
         >
           {statusLabel}
         </span>
-        <span className="ml-auto flex gap-px">
+        <span className="ml-auto flex gap-1">
           <Button
             variant={filter.cqOnly ? 'navy' : 'tile'}
             aria-pressed={filter.cqOnly}

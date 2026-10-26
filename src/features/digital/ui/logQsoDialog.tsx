@@ -65,7 +65,7 @@ function LogForm({ draft }: { draft: LogDraft }) {
       <Field label="Notas" className="col-span-2">
         <TextInput value={form.notes} onChange={(event) => set({ notes: event.target.value })} />
       </Field>
-      <div className="col-span-2 flex justify-end gap-px pt-1">
+      <div className="col-span-2 flex justify-end gap-1 pt-1">
         <Button variant="tile" className="h-8 text-xs" onClick={operator.discardLog}>
           Descartar
         </Button>

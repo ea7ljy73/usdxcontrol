@@ -27,7 +27,7 @@ type Options = {
   activeWindowMs?: number
   retryAfterMs?: number
   pttRetryMs?: number
-  extended?: boolean
+  meterIntervalMs?: number
 }
 
 const PUMP_TICK_MS = 50
@@ -43,9 +43,14 @@ export const createRadioSession = (link: RadioLink, options: Options = {}) => {
     activeWindowMs = 4_000,
     retryAfterMs = 2000,
     pttRetryMs = 350,
-    extended = false,
+    // El S-meter va a su propio ritmo, elegido por el usuario (más rápido, más chasquidos).
+    meterIntervalMs: initialMeterIntervalMs = 1_000,
   } = options
+  let meterIntervalMs = initialMeterIntervalMs
 
+  // Firmware ampliado (v2.2.0+): se detecta al conectar leyendo el volumen con EX000; el
+  // de serie responde «?;» y entonces solo se usan FA/MD/IF/TX/RX/RC.
+  let extended = false
   let linkStatus: RadioLinkStatus = 'disconnected'
   let frequency: Frequency | null = null
   let mode: RadioMode | null = null
@@ -60,7 +65,7 @@ export const createRadioSession = (link: RadioLink, options: Options = {}) => {
   let queue: CatCommand[] = []
   let partial = ''
   let lastSentAt = Number.NEGATIVE_INFINITY
-  let pollTick = 0
+  let lastMeterAt = Number.NEGATIVE_INFINITY
   let lastActivityAt = Number.NEGATIVE_INFINITY
   let lastPollAt = Number.NEGATIVE_INFINITY
   let pttRetryAt = 0
@@ -146,9 +151,6 @@ export const createRadioSession = (link: RadioLink, options: Options = {}) => {
       case 'power-state':
         if (linkStatus !== 'connected') {
           linkStatus = 'connected'
-          if (extended) {
-            queue.push({ kind: 'volume-get' }, { kind: 'agc-get' }, { kind: 'nr-get' })
-          }
           emit()
         }
         break
@@ -183,6 +185,16 @@ export const createRadioSession = (link: RadioLink, options: Options = {}) => {
         break
       case 'nr':
         nr = response.nr
+        emit()
+        break
+      case 'menu':
+        if (response.item !== 0) break
+        if (!extended) {
+          extended = true
+          queue.push({ kind: 'agc-get' }, { kind: 'nr-get' })
+        }
+        // −1 es el volumen apagado del menú: en la app, 0.
+        volume = Math.max(0, response.value)
         emit()
         break
       default:
@@ -241,16 +253,20 @@ export const createRadioSession = (link: RadioLink, options: Options = {}) => {
     // Transmitiendo no se sondea: cada trama es ruido y el estado no cambia.
     if (linkStatus !== 'connected' || queue.length > 0 || tx) return
     const now = Date.now()
+    // Media vuelta del temporizador de margen: un tic que llega unos ms antes no salta un turno.
+    if (extended && now - lastMeterAt >= meterIntervalMs - pollIntervalMs / 2) {
+      lastMeterAt = now
+      queue.push({ kind: 'meter-get' })
+    }
     const active = tx || intentFrequency !== null || intentMode !== null || now - lastActivityAt < activeWindowMs
     if (!active && now - lastPollAt < idlePollIntervalMs) return
     lastPollAt = now
     retryExpiredIntents()
-    pollTick += 1
-    if (extended && pollTick % 2 === 0) {
-      queue.push({ kind: 'meter-get' })
-      return
-    }
     queue.push({ kind: 'state-get' })
+  }
+
+  const setMeterInterval = (ms: number) => {
+    meterIntervalMs = ms
   }
 
   // El PTT se adelanta a todo lo pendiente (en FT8 el inicio de la emisión va a la
@@ -271,12 +287,7 @@ export const createRadioSession = (link: RadioLink, options: Options = {}) => {
     detachData ??= link.onData(handleData)
     detachStatus ??= link.onStatusChange((status) => {
       if (linkStatus === status) return
-      if (status === 'connected') {
-        lastError = null
-        if (extended) {
-          queue.push({ kind: 'volume-get' }, { kind: 'agc-get' }, { kind: 'nr-get' })
-        }
-      }
+      if (status === 'connected') lastError = null
       linkStatus = status
       emit()
     })
@@ -290,6 +301,7 @@ export const createRadioSession = (link: RadioLink, options: Options = {}) => {
       return
     }
     enqueue({ kind: 'identify' })
+    enqueue({ kind: 'extended-probe' })
     touch()
     pumpTimer = setInterval(pump, PUMP_TICK_MS)
     pollTimer = setInterval(poll, pollIntervalMs)
@@ -312,6 +324,7 @@ export const createRadioSession = (link: RadioLink, options: Options = {}) => {
     pttRetryAt = 0
     pttRetriesLeft = 0
     lastError = null
+    extended = false
     meter = null
     volume = null
     agc = null
@@ -335,6 +348,7 @@ export const createRadioSession = (link: RadioLink, options: Options = {}) => {
     touch()
     volume = value
     enqueue({ kind: 'volume-set', volume: value })
+    enqueue({ kind: 'volume-get' })
     emit()
   }
 
@@ -343,6 +357,7 @@ export const createRadioSession = (link: RadioLink, options: Options = {}) => {
     touch()
     agc = value
     enqueue({ kind: 'agc-set', agc: value })
+    enqueue({ kind: 'agc-get' })
     emit()
   }
 
@@ -351,6 +366,7 @@ export const createRadioSession = (link: RadioLink, options: Options = {}) => {
     touch()
     nr = value
     enqueue({ kind: 'nr-set', nr: value })
+    enqueue({ kind: 'nr-get' })
     emit()
   }
 
@@ -368,6 +384,8 @@ export const createRadioSession = (link: RadioLink, options: Options = {}) => {
     tx = true
     pttRetryAt = 0
     pttRetriesLeft = 0
+    // Las lecturas de sondeo pendientes sobran en TX: se oirían y el estado no cambia.
+    queue = queue.filter((queued) => queued.kind !== 'state-get' && queued.kind !== 'meter-get')
     enqueue({ kind: 'ptt-on' })
     emit()
   }
@@ -399,6 +417,7 @@ export const createRadioSession = (link: RadioLink, options: Options = {}) => {
     setVolume,
     setAgc,
     setNr,
+    setMeterInterval,
     subscribe(listener: (snapshot: RadioSnapshot) => void) {
       listeners.add(listener)
       return () => listeners.delete(listener)

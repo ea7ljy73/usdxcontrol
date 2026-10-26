@@ -41,7 +41,7 @@ Los detalles de permisos y reglas udev están en [instalacion-electron.md](insta
   - **Fijar / Soltar**: marca o desmarca el dial, igual que el doble clic. Pensado para pantallas táctiles.
   - **Relleno / Línea / Suave**: estilo del espectro. *Relleno* pinta el degradado de colores bajo la curva, *Línea* deja solo la curva y *Suave* añade un relleno tenue. La app recuerda tu elección.
   - **Ancho** del panadaptador: pulsa para cambiar el zoom.
-- La bandera del slice muestra la antena, la banda, el filtro, el modo, la frecuencia, el S-métrico y los indicadores NB, NR, ANF y AGC.
+- La bandera del slice muestra la antena, la banda, el filtro, el modo, la frecuencia y el S-métrico. **NR** y **AGC** se pueden pulsar ahí mismo: NR sube un nivel (0–8, tras el 8 vuelve a apagado) y AGC pasa por OFF, Fast y Slow. Necesitan el firmware v2.2.0 o posterior.
 
 ### Dial (parte inferior)
 

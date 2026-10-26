@@ -1,18 +1,18 @@
 import { cn } from '@/lib/cn'
 import type { RadioMode } from '../domain/mode'
 import { passbandWidthLabel } from '../domain/passband'
-import { meterPercent, sUnitLabel } from '../domain/receiver'
+import { AGC_LEVELS, meterForS, meterPercent, meterRatio, sUnitLabel } from '../domain/receiver'
 
-// Posición de cada marca sobre la escala cruda 0–255 del firmware (S9 = 136).
-const S9_RATIO = 136 / 255
+// Marcas sobre la escala del S-meter del CAT (0..30, S9 = 15, 4 dB por cuenta).
+const S9_RATIO = meterRatio(meterForS(9))
 const SCALE_MARKS = [
-  { label: '1', at: (1 / 9) * S9_RATIO },
-  { label: '3', at: (3 / 9) * S9_RATIO },
-  { label: '5', at: (5 / 9) * S9_RATIO },
-  { label: '7', at: (7 / 9) * S9_RATIO },
+  { label: '1', at: meterRatio(meterForS(1)) },
+  { label: '3', at: meterRatio(meterForS(3)) },
+  { label: '5', at: meterRatio(meterForS(5)) },
+  { label: '7', at: meterRatio(meterForS(7)) },
   { label: '9', at: S9_RATIO },
-  { label: '+20', at: S9_RATIO + (1 - S9_RATIO) / 2 },
-  { label: '+40', at: 0.94 },
+  { label: '+20', at: meterRatio(meterForS(9, 20)) },
+  { label: '+40', at: meterRatio(meterForS(9, 40)) },
 ]
 
 export function SMeterScale({ size = 'sm' }: { size?: 'sm' | 'lg' }) {
@@ -48,12 +48,31 @@ type Props = {
   nr: number | null
   agc: number | null
   bandLabel: string | null
+  // Sin firmware ampliado NR y AGC solo se muestran.
+  controlsEnabled?: boolean
+  onNrClick?: () => void
+  onAgcClick?: () => void
 }
 
-const AGC_SHORT = ['OFF', 'A', 'F', 'S'] as const
+const AGC_SHORT = ['OFF', 'F', 'S'] as const
+const flagButton =
+  'pointer-events-auto px-1 leading-5 hover:bg-white/10 focus-visible:ring-2 focus-visible:ring-slice focus-visible:outline-none disabled:pointer-events-none'
 
-export function SliceFlag({ frequencyLabel, tag, mode, tx, meter, nr, agc, bandLabel }: Props) {
+export function SliceFlag({
+  frequencyLabel,
+  tag,
+  mode,
+  tx,
+  meter,
+  nr,
+  agc,
+  bandLabel,
+  controlsEnabled = false,
+  onNrClick,
+  onAgcClick,
+}: Props) {
   const nrOn = (nr ?? 0) > 0
+  const agcLabel = agc === null ? '--' : (AGC_SHORT[agc] ?? '--')
   return (
     <div
       data-testid="slice-flag"
@@ -94,10 +113,26 @@ export function SliceFlag({ frequencyLabel, tag, mode, tx, meter, nr, agc, bandL
           <path d="M1 5h3l4-4v12L4 9H1z" />
           <path d="M11 4a4 4 0 0 1 0 6M13 2a7 7 0 0 1 0 10" fill="none" stroke="currentColor" strokeWidth="1.5" />
         </svg>
-        <span className="text-dim">NB</span>
-        <span className={nrOn ? 'text-ant' : 'text-dim'}>{nrOn ? `NR${nr}` : 'NR'}</span>
-        <span className="text-dim">ANF</span>
-        <span className="ml-auto text-ant">AGC-{agc === null ? 'A' : AGC_SHORT[agc] ?? 'A'}</span>
+        <button
+          type="button"
+          data-testid="flag-nr"
+          disabled={!controlsEnabled}
+          aria-label={`${nrOn ? `NR${nr}` : 'NR'}: reducción de ruido, clic para subir`}
+          onClick={onNrClick}
+          className={cn(flagButton, nrOn ? 'text-ant' : 'text-dim')}
+        >
+          {nrOn ? `NR${nr}` : 'NR'}
+        </button>
+        <button
+          type="button"
+          data-testid="flag-agc"
+          disabled={!controlsEnabled}
+          aria-label={`AGC-${agcLabel}: ${agc === null ? 'desconocido' : AGC_LEVELS[agc]}, clic para cambiar`}
+          onClick={onAgcClick}
+          className={cn(flagButton, 'ml-auto text-ant')}
+        >
+          AGC-{agcLabel}
+        </button>
       </div>
     </div>
   )

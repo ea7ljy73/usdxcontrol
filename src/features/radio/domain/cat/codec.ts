@@ -1,6 +1,6 @@
 import { formatFrequencyDigits, parseFrequencyDigits, type Frequency } from '../frequency'
 import { modeFromCatDigit, modeToCatDigit, type RadioMode } from '../mode'
-import { clampAgcLevel, clampNr, clampVolume } from '../receiver'
+import { clampAgcLevel, clampNr, clampVolume, MAX_VOLUME } from '../receiver'
 
 export type CatCommand =
   | { kind: 'identify' }
@@ -13,6 +13,7 @@ export type CatCommand =
   | { kind: 'ptt-off' }
   | { kind: 'rit-clear' }
   | { kind: 'meter-get' }
+  | { kind: 'extended-probe' }
   | { kind: 'volume-get' }
   | { kind: 'volume-set'; volume: number }
   | { kind: 'agc-get' }
@@ -33,6 +34,7 @@ export type CatResponse =
   | { type: 'volume'; volume: number }
   | { type: 'agc'; agc: number }
   | { type: 'nr'; nr: number }
+  | { type: 'menu'; item: number; value: number }
   | { type: 'unknown' }
   | { type: 'error' }
 
@@ -56,20 +58,24 @@ export const encodeFrame = (command: CatCommand): string => {
       return 'RX;'
     case 'rit-clear':
       return 'RC;'
+    // Firmware ampliado v2.2.0 (CAT.md): S-meter 0..30, volumen por AG0 en escala TS-480
+    // 000-255 (16 por paso del menú), AGC por GT y nivel de NR por RL. Escribir no responde.
     case 'meter-get':
-      return 'SM;'
+      return 'SM0;'
+    case 'extended-probe':
+      return 'EX0000000;'
     case 'volume-get':
-      return 'VO;'
+      return 'AG0;'
     case 'volume-set':
-      return `VO${String(clampVolume(command.volume)).padStart(2, '0')};`
+      return `AG0${String(Math.min(255, clampVolume(command.volume) * 16)).padStart(3, '0')};`
     case 'agc-get':
-      return 'AG;'
+      return 'GT;'
     case 'agc-set':
-      return `AG${clampAgcLevel(command.agc)};`
+      return `GT${String(clampAgcLevel(command.agc)).padStart(3, '0')};`
     case 'nr-get':
-      return 'NR;'
+      return 'RL;'
     case 'nr-set':
-      return `NR${clampNr(command.nr)};`
+      return `RL${String(clampNr(command.nr)).padStart(2, '0')};`
   }
 }
 
@@ -89,10 +95,11 @@ const mdPattern = /^MD[0-9]$/
 const ifPattern = /^IF[0-9]{11}/
 const ifModeIndex = 2 + 11 + 16
 const ifMinimumLength = ifModeIndex + 1
-const smPattern = /^SM[0-9]{3}$/
-const voPattern = /^VO[0-9][0-9]$/
-const agPattern = /^AG[0-3]$/
-const nrPattern = /^NR[0-4]$/
+const smPattern = /^SM0[0-9]{4}$/
+const agPattern = /^AG0[0-9]{3}$/
+const gtPattern = /^GT00[0-2]$/
+const rlPattern = /^RL0[0-8]$/
+const exPattern = /^EX([0-9]{3})0000(-?[0-9]+)$/
 
 export const parseFrame = (frame: string): CatResponse => {
   if (!frame.endsWith(';') || frame.length < 2) return { type: 'unknown' }
@@ -114,8 +121,13 @@ export const parseFrame = (frame: string): CatResponse => {
   if (body === 'PS1') return { type: 'power-state' }
   if (body === 'AI0') return { type: 'auto-info' }
   if (smPattern.test(body)) return { type: 'meter', meter: Number(body.slice(2)) }
-  if (voPattern.test(body)) return { type: 'volume', volume: Number(body.slice(2)) }
-  if (agPattern.test(body)) return { type: 'agc', agc: Number(body[2]) }
-  if (nrPattern.test(body)) return { type: 'nr', nr: Number(body[2]) }
+  if (agPattern.test(body)) {
+    const level = Number(body.slice(3))
+    return { type: 'volume', volume: level >= 255 ? MAX_VOLUME : Math.min(MAX_VOLUME, level >> 4) }
+  }
+  if (gtPattern.test(body)) return { type: 'agc', agc: Number(body.slice(2)) }
+  if (rlPattern.test(body)) return { type: 'nr', nr: Number(body.slice(2)) }
+  const menu = exPattern.exec(body)
+  if (menu) return { type: 'menu', item: Number(menu[1]), value: Number(menu[2]) }
   return { type: 'unknown' }
 }

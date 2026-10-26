@@ -1,7 +1,15 @@
+import { mkdtempSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
 import { _electron as electron, expect, test } from '@playwright/test'
 
+// Perfil vacío en cada arranque: lo que el usuario guarde en la app (espectro plegado,
+// estilo, ajustes de FT8…) no debe cambiar lo que ven los tests.
+const launch = () =>
+  electron.launch({ args: ['.', `--user-data-dir=${mkdtempSync(path.join(tmpdir(), 'usdxcontrol-e2e-'))}`] })
+
 test('la ventana de escritorio arranca', async () => {
-  const app = await electron.launch({ args: ['.'] })
+  const app = await launch()
   const window = await app.firstWindow()
   await app.evaluate(({ BrowserWindow }) => {
     BrowserWindow.getAllWindows()[0]?.setContentSize(1280, 832)
@@ -25,7 +33,7 @@ test('la ventana de escritorio arranca', async () => {
 // El worker y los WASM de FT8 se cargan desde file:// en la app empaquetada.
 test('FT8 decodifica en la app de escritorio', async () => {
   test.setTimeout(60_000)
-  const app = await electron.launch({ args: ['.'] })
+  const app = await launch()
   const window = await app.firstWindow()
   const errors: string[] = []
   window.on('console', (msg) => {
@@ -75,7 +83,7 @@ test('SDR por rtl_tcp en la app de escritorio', async () => {
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
   const port = (server.address() as { port: number }).port
 
-  const app = await electron.launch({ args: ['.'] })
+  const app = await launch()
   const window = await app.firstWindow()
   const errors: string[] = []
   window.on('console', (msg) => {

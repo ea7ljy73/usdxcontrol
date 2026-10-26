@@ -26,7 +26,7 @@ export function LogbookDialog({ open, onOpenChange }: Props) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange} title={`Libro de guardia · ${logbook.length} QSO`} className="max-w-4xl">
       <div className="flex flex-col gap-2">
-        <div className="flex flex-wrap gap-px">
+        <div className="flex flex-wrap gap-1">
           <Button
             variant="tile"
             className="h-8 px-3 text-xs"

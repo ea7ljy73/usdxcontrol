@@ -152,7 +152,7 @@ describe('radioSession con simulador CAT', () => {
   })
 })
 
-describe('radioSession en modo extendido (firmware ampliado)', () => {
+describe('radioSession con firmware ampliado (detectado al conectar)', () => {
   afterEach(() => {
     vi.useRealTimers()
   })
@@ -160,11 +160,27 @@ describe('radioSession en modo extendido (firmware ampliado)', () => {
   const startExtended = async () => {
     vi.useFakeTimers()
     const link = createCatSimulatorLink()
-    const session = createRadioSession(link, { extended: true })
+    const session = createRadioSession(link)
     await session.start()
     await runUntil(2400)
     return { link, session }
   }
+
+  it('con el firmware de serie no activa volumen, AGC ni NR', async () => {
+    vi.useFakeTimers()
+    const link = createCatSimulatorLink({ firmware: 'legacy' })
+    const session = createRadioSession(link)
+    await session.start()
+    await runUntil(2400)
+    const snapshot = session.getSnapshot()
+    expect(snapshot.linkStatus).toBe('connected')
+    expect(snapshot.extended).toBe(false)
+    expect(snapshot.volume).toBeNull()
+    session.setVolume(10)
+    await runUntil(600)
+    expect(link.state().volume).toBe(8)
+    session.stop()
+  })
 
   it('sondea el S-meter y publica su nivel', async () => {
     const { session } = await startExtended()
@@ -172,24 +188,24 @@ describe('radioSession en modo extendido (firmware ampliado)', () => {
     expect(snapshot.extended).toBe(true)
     expect(snapshot.meter).not.toBeNull()
     expect(snapshot.meter).toBeGreaterThanOrEqual(0)
-    expect(snapshot.meter).toBeLessThanOrEqual(255)
+    expect(snapshot.meter).toBeLessThanOrEqual(30)
     session.stop()
     expect(session.getSnapshot().meter).toBeNull()
   })
 
-  it('ajusta volumen, AGC y NR con acuse de la radio', async () => {
+  it('ajusta volumen, AGC y NR y lo confirma releyendo (escribir no responde)', async () => {
     const { link, session } = await startExtended()
-    expect(session.getSnapshot().volume).toBe(40)
+    expect(session.getSnapshot().volume).toBe(8)
     expect(session.getSnapshot().agc).toBe(1)
     expect(session.getSnapshot().nr).toBe(0)
-    session.setVolume(66)
+    session.setVolume(12)
     session.setAgc(2)
     session.setNr(3)
-    await runUntil(600)
-    expect(session.getSnapshot().volume).toBe(66)
+    await runUntil(1200)
+    expect(session.getSnapshot().volume).toBe(12)
     expect(session.getSnapshot().agc).toBe(2)
     expect(session.getSnapshot().nr).toBe(3)
-    expect(link.state().volume).toBe(66)
+    expect(link.state().volume).toBe(12)
     expect(link.state().agc).toBe(2)
     expect(link.state().nr).toBe(3)
     session.stop()
@@ -201,7 +217,19 @@ describe('ritmo del sondeo CAT', () => {
     vi.useRealTimers()
   })
 
+  // El estado (IF) y el S-meter (SM0) llevan ritmos separados.
   const countPolls = (sent: string[]) => sent.filter((frame) => frame === 'IF;').length
+  const countMeter = (sent: string[]) => sent.filter((frame) => frame === 'SM0;').length
+  const recording = () => {
+    const link = createCatSimulatorLink()
+    const sent: string[] = []
+    const send = link.send.bind(link)
+    link.send = (frame: string) => {
+      sent.push(frame)
+      send(frame)
+    }
+    return { link, sent }
+  }
 
   it('en reposo sondea cada 3 s y, tras una orden, cada 500 ms', async () => {
     vi.useFakeTimers()
@@ -224,6 +252,45 @@ describe('ritmo del sondeo CAT', () => {
     session.requestFrequency(7_100_000)
     await vi.advanceTimersByTimeAsync(3_000)
     expect(countPolls(sent)).toBeGreaterThanOrEqual(4)
+    session.stop()
+  })
+
+  it('el S-meter se lee al ritmo elegido, también en reposo', async () => {
+    vi.useFakeTimers()
+    const { link, sent } = recording()
+    const session = createRadioSession(link)
+    await session.start()
+    await vi.advanceTimersByTimeAsync(6_000)
+    sent.length = 0
+    await vi.advanceTimersByTimeAsync(6_000)
+    expect(countMeter(sent)).toBe(6)
+
+    session.setMeterInterval(500)
+    sent.length = 0
+    await vi.advanceTimersByTimeAsync(6_000)
+    expect(countMeter(sent)).toBeGreaterThanOrEqual(11)
+
+    session.setMeterInterval(6_000)
+    await vi.advanceTimersByTimeAsync(500)
+    sent.length = 0
+    await vi.advanceTimersByTimeAsync(12_000)
+    expect(countMeter(sent)).toBe(2)
+    session.stop()
+  })
+
+  it('con el firmware de serie no pide el S-meter', async () => {
+    vi.useFakeTimers()
+    const link = createCatSimulatorLink({ firmware: 'legacy' })
+    const sent: string[] = []
+    const send = link.send.bind(link)
+    link.send = (frame: string) => {
+      sent.push(frame)
+      send(frame)
+    }
+    const session = createRadioSession(link)
+    await session.start()
+    await vi.advanceTimersByTimeAsync(8_000)
+    expect(countMeter(sent)).toBe(0)
     session.stop()
   })
 })

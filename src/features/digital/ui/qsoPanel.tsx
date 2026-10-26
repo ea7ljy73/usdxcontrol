@@ -79,7 +79,7 @@ export function QsoPanel({ onOpenSettings }: { onOpenSettings: () => void }) {
   const parityLabel = settings.txParity === 'odd' ? 'impar' : 'par'
 
   return (
-    <section aria-label="QSO" className="grid gap-px bg-bg lg:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)_minmax(0,1fr)]">
+    <section aria-label="QSO" className="grid gap-px bg-line lg:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)_minmax(0,1fr)]">
       <div className="flex flex-col gap-1.5 bg-panel-deep p-2">
         <div className="flex items-center gap-2">
           <h2 className="text-xs font-medium tracking-wide text-muted uppercase">Estación DX</h2>
@@ -128,7 +128,7 @@ export function QsoPanel({ onOpenSettings }: { onOpenSettings: () => void }) {
             />
           </Field>
         </div>
-        <div className="flex flex-wrap gap-px">
+        <div className="flex flex-wrap gap-1">
           <Button variant="tile" className="h-8 px-2 text-xs" disabled={!dxCall || ft4} onClick={operator.callDx}>
             Llamar DX
           </Button>
@@ -143,9 +143,9 @@ export function QsoPanel({ onOpenSettings }: { onOpenSettings: () => void }) {
 
       <div className="flex flex-col gap-1.5 bg-panel-deep p-2">
         <h2 className="text-xs font-medium tracking-wide text-muted uppercase">Mensajes</h2>
-        <ol className="flex flex-col gap-px">
+        <ol className="flex flex-col gap-1">
           {messages.map((message, index) => (
-            <li key={message.id} className="flex items-center gap-px">
+            <li key={message.id} className="flex items-center gap-1">
               <span className="w-9 shrink-0 bg-instrument px-1 py-1 text-center font-mono text-xs text-muted">Tx{index + 1}</span>
               <span
                 className={cn(
@@ -185,7 +185,7 @@ export function QsoPanel({ onOpenSettings }: { onOpenSettings: () => void }) {
             {qso.phase}
           </span>
         </div>
-        <div className="flex flex-wrap gap-px">
+        <div className="flex flex-wrap gap-1">
           <Button variant="tile" className="h-7 px-2 text-xs" onClick={operator.advancePhase}>
             Siguiente paso →
           </Button>
@@ -219,13 +219,13 @@ export function QsoPanel({ onOpenSettings }: { onOpenSettings: () => void }) {
                     ? `Próximo (${parityLabel}, en ${waitS} s): ${nextMessage}`
                     : 'Sin transmisión'}
         </div>
-        <div className="grid grid-cols-2 gap-px sm:grid-cols-4 [&>button]:px-1 [&>button]:whitespace-nowrap">
+        <div className="grid grid-cols-2 gap-1 sm:grid-cols-4 [&>button]:px-1 [&>button]:whitespace-nowrap">
           <Button
             data-testid="digi-enable-tx"
             variant={txEnabled ? 'navy' : 'tile'}
             aria-pressed={txEnabled}
             disabled={ft4}
-            className={cn('h-9 text-xs', txEnabled && 'text-error')}
+            className={cn('h-9 text-xs', txEnabled && 'text-error aria-pressed:text-tx-fg aria-pressed:bg-tx')}
             onClick={() => operator.setTxEnabled(!txEnabled)}
           >
             Habilitar TX
@@ -237,7 +237,7 @@ export function QsoPanel({ onOpenSettings }: { onOpenSettings: () => void }) {
             variant={operatorState.tuning ? 'navy' : 'tile'}
             aria-pressed={operatorState.tuning}
             title="Portadora continua en el tono de TX para ajustar la potencia (se corta a los 60 s)"
-            className={cn('h-9 text-xs', operatorState.tuning && 'text-error')}
+            className={cn('h-9 text-xs', operatorState.tuning && 'text-error aria-pressed:text-tx-fg aria-pressed:bg-tx')}
             onClick={() => void operator.tune(!operatorState.tuning)}
           >
             Tune
@@ -251,7 +251,7 @@ export function QsoPanel({ onOpenSettings }: { onOpenSettings: () => void }) {
             Halt TX
           </Button>
         </div>
-        <div className="flex flex-wrap gap-px">
+        <div className="flex flex-wrap gap-1">
           <Toggle
             on={settings.autoSeq}
             title="Contesta solo siguiendo la secuencia del QSO"
@@ -276,7 +276,7 @@ export function QsoPanel({ onOpenSettings }: { onOpenSettings: () => void }) {
         </div>
         <div className="flex items-center gap-2 text-xs text-muted">
           <span>Mi secuencia</span>
-          <span role="group" aria-label="Secuencia de transmisión" className="flex gap-px">
+          <span role="group" aria-label="Secuencia de transmisión" className="flex gap-1">
             <Toggle on={settings.txParity === 'even'} onClick={() => operator.updateSettings({ txParity: 'even' })}>
               Par :00/:30
             </Toggle>

@@ -152,7 +152,7 @@ export function SdrDialog({ open, onOpenChange }: Props) {
           <span
             data-testid="sdr-status"
             role="status"
-            className={status === 'error' ? 'text-sm text-error' : status === 'on' ? 'text-sm text-rx' : 'text-sm text-muted'}
+            className={status === 'error' ? 'text-sm text-error select-text' : status === 'on' ? 'text-sm text-rx' : 'text-sm text-muted'}
           >
             {status === 'error' ? (sdrState.lastError ?? STATUS.error) : STATUS[status]}
             {sdrState.centerHz !== null && status !== 'error' ? ` · ${(sdrState.centerHz / 1e6).toFixed(3)} MHz` : ''}

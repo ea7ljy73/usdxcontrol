@@ -54,7 +54,7 @@ export function DigiToolbar({ dialHz, onMode, onTune, onOpenDialog }: Props) {
 
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 bg-panel-deep px-2 py-1.5">
-      <div role="group" aria-label="Modo digital" className="flex gap-px">
+      <div role="group" aria-label="Modo digital" className="flex gap-1">
         {DIGI_MODES.map((entry) => (
           <Button
             key={entry}
@@ -68,7 +68,7 @@ export function DigiToolbar({ dialHz, onMode, onTune, onOpenDialog }: Props) {
         ))}
       </div>
 
-      <div role="group" aria-label={`Bandas ${mode}`} className="flex flex-wrap gap-px">
+      <div role="group" aria-label={`Bandas ${mode}`} className="flex flex-wrap gap-1">
         {DIGI_BANDS.map((band) => {
           const hz = digiDialHz(mode, band)
           if (hz === null) return null
@@ -89,7 +89,7 @@ export function DigiToolbar({ dialHz, onMode, onTune, onOpenDialog }: Props) {
         })}
       </div>
 
-      <div role="group" aria-label="Audio de recepción" className="flex gap-px">
+      <div role="group" aria-label="Audio de recepción" className="flex gap-1">
         <Button
           variant={running ? 'navy' : 'tile'}
           aria-pressed={running}
@@ -120,7 +120,7 @@ export function DigiToolbar({ dialHz, onMode, onTune, onOpenDialog }: Props) {
         </Button>
       </div>
 
-      <div className="flex gap-px">
+      <div className="flex gap-1">
         <Button variant="tile" className="h-8 px-2 text-xs" onClick={() => onOpenDialog('settings')}>
           Ajustes…
         </Button>

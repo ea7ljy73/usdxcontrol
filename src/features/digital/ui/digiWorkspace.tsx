@@ -28,7 +28,7 @@ export function DigiWorkspace({ dialHz, onMode, onTune }: Props) {
   const openChange = (id: DialogId) => (open: boolean) => setDialog(open ? id : null)
 
   return (
-    <div data-testid="digi-workspace" className="flex min-h-0 min-w-0 flex-1 flex-col gap-px bg-bg">
+    <div data-testid="digi-workspace" className="flex min-h-0 min-w-0 flex-1 flex-col gap-px bg-line">
       <DigiToolbar dialHz={dialHz} onMode={onMode} onTune={onTune} onOpenDialog={setDialog} />
       <div className="grid min-h-0 flex-1 gap-px lg:grid-cols-[3fr_2fr]">
         <BandActivity />

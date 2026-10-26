@@ -7,24 +7,25 @@
   --font-mono: "SF Mono", "JetBrains Mono", ui-monospace, monospace;
 }
 
-/* Paleta tomada de SmartSDR for Mac: barra y botones azul marino, paneles grises,
-   instrumentos sobre negro, panadaptador azul petróleo y slice amarillo. */
+/* Superficies de pizarra oscura separadas por líneas finas; acciones en azul pizarra,
+   lo seleccionado en el acento, instrumentos casi negros, panadaptador azul petróleo
+   y slice amarillo. */
 :root {
-  --bg: oklch(0.2 0.006 260);
-  --panel: oklch(0.46 0.006 260);
-  --panel-deep: oklch(0.3 0.006 260);
-  --line: oklch(0.36 0.01 260);
-  --fg: oklch(0.98 0 0);
-  --muted: oklch(0.8 0.01 260);
-  --dim: oklch(0.57 0.01 260);
-  --navy: oklch(0.32 0.11 262);
-  --navy-hover: oklch(0.4 0.13 262);
-  --navy-line: oklch(0.45 0.09 262);
-  --tile: oklch(0.42 0 0);
-  --tile-hover: oklch(0.5 0 0);
-  --chrome: oklch(0.29 0.1 262);
-  --instrument: oklch(0 0 0);
-  --accent: oklch(0.62 0.13 250);
+  --bg: oklch(0.15 0.012 255);
+  --panel: oklch(0.2 0.014 255);
+  --panel-deep: oklch(0.13 0.012 255);
+  --line: oklch(0.3 0.016 255);
+  --fg: oklch(0.97 0.003 255);
+  --muted: oklch(0.78 0.015 255);
+  --dim: oklch(0.58 0.015 255);
+  --navy: oklch(0.31 0.055 258);
+  --navy-hover: oklch(0.37 0.07 258);
+  --navy-line: oklch(0.42 0.07 258);
+  --tile: oklch(0.26 0.014 255);
+  --tile-hover: oklch(0.32 0.016 255);
+  --chrome: oklch(0.18 0.014 255);
+  --instrument: oklch(0.11 0.01 255);
+  --accent: oklch(0.53 0.14 252);
   --accent-fg: oklch(0.99 0 0);
   --pan: oklch(0.29 0.055 238);
   --pan-scale: oklch(0.2 0.04 240);
