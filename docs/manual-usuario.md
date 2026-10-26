@@ -1,6 +1,6 @@
 # Manual de usuario de uSDX Control
 
-uSDX Control maneja un transceptor uSDX desde el ordenador por su puerto CAT (USB-serie). La pantalla sigue el estilo de SmartSDR: el espectro y la cascada ocupan la parte central, el dial está abajo y los controles de la radio quedan a la derecha. Además trae una estación FT8/FT4 completa y puede usar un RTL-SDR para ver la banda entera.
+uSDX Control maneja un transceptor uSDX desde el ordenador por su puerto CAT (USB-serie). En la pantalla, el espectro y la cascada ocupan la parte central, el dial está abajo y los controles de la radio quedan a la derecha. Además trae una estación FT8/FT4 completa y puede usar un RTL-SDR para ver la banda entera.
 
 ## 1. Instalación
 

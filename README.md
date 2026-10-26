@@ -1,6 +1,6 @@
 # uSDX Control
 
-Control del transceptor **uSDX** desde el ordenador, con una pantalla al estilo SmartSDR: panadaptador y cascada, VFO A/B, bandas, modos, S-métrico y PTT por CAT. Incluye una estación **FT8/FT4** completa (al estilo WSJT-X) y admite un **RTL-SDR** como receptor de panorámico, que se calla solo cuando el uSDX transmite.
+Control del transceptor **uSDX** desde el ordenador: panadaptador y cascada, VFO A/B, bandas, modos, S-métrico y PTT por CAT. Incluye una estación **FT8/FT4** completa (al estilo WSJT-X) y admite un **RTL-SDR** como receptor de panorámico, que se calla solo cuando el uSDX transmite.
 
 ![Estación FT8](docs/capturas/ft8.png)
 
@@ -41,10 +41,4 @@ pnpm install
 pnpm dev            # versión web en http://localhost:5173 (?radio=mock para simular)
 pnpm dev:desktop    # app de escritorio
 pnpm lint && pnpm test && pnpm test:e2e && pnpm test:desktop
-```
-
-Cada etiqueta `v*` subida a GitHub lanza el workflow `release.yml`, que compila los instaladores de Windows, macOS y Linux y los publica en Releases:
-
-```sh
-git tag v0.1.0 && git push origin v0.1.0
 ```
