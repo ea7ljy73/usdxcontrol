@@ -1,7 +1,7 @@
 {
   "name": "usdxcontrol",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0",
   "type": "module",
   "main": "out/main/index.js",
   "description": "Estación de control para transceptores uSDX por CAT/UART",
