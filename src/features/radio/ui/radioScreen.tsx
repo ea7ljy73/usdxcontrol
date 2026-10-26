@@ -14,12 +14,12 @@ import type { SpectrumFeed } from '@/features/spectrum/application/ports'
 import { audioRangeBetween } from '@/features/spectrum/domain/audioMapping'
 import { hasSignal } from '@/features/spectrum/domain/signalDetect'
 import { AudioScope } from '@/features/spectrum/ui/audioScope'
-import { Panadapter } from '@/features/spectrum/ui/panadapter'
+import { Panadapter, type SpectrumTrace } from '@/features/spectrum/ui/panadapter'
 import { useSpectrumFeed } from '@/features/spectrum/ui/useSpectrumFeed'
 import { digiDialHz } from '@/features/digital/domain/digiFrequencies'
 import { DIGI_MODES, type DigiMode } from '@/features/digital/domain/slots'
 import { DigiWorkspace } from '@/features/digital/ui/digiWorkspace'
-import { useDigital } from '@/features/digital/ui/useDigital'
+import { useDigital, useStoredState } from '@/features/digital/ui/useDigital'
 import { SdrButton } from '@/features/sdr/ui/sdrButton'
 import { useSdr } from '@/features/sdr/ui/useSdr'
 import { BANDS, bandFromFrequency } from '../domain/band'
@@ -69,6 +69,10 @@ export function RadioScreen() {
   const { receiver: digi, receiverState: digiState, operator: digiOperator } = useDigital()
   const [digiOn, setDigiOn] = useState(false)
   const { sdr, sdrState } = useSdr()
+  const [spectrumView, setSpectrumView] = useStoredState<{ trace: SpectrumTrace; audioScope: boolean }>('spectrum.view', {
+    trace: 'relleno',
+    audioScope: true,
+  })
   const sdrActive = sdrState.status === 'on' || sdrState.status === 'muted'
   const [sdrFeed] = useState(() => sdr.feed())
   const [stepIndex, setStepIndex] = useState(3)
@@ -542,6 +546,8 @@ export function RadioScreen() {
                 )
               }
               tuneStepHz={step}
+              trace={spectrumView.trace}
+              onTraceChange={(trace) => setSpectrumView((view) => ({ ...view, trace }))}
               onTuneOffset={(offsetHz) => {
                 setScanDirection(0)
                 if (snapshot.frequency !== null) session.requestFrequency(snapshot.frequency + offsetHz)
@@ -792,12 +798,35 @@ export function RadioScreen() {
                 <SMeterScale size="lg" />
               </div>
             </div>
-            <div className="mx-2 mb-2 bg-instrument px-3 pt-2 pb-1">
-              <div className="mb-1.5 flex items-baseline justify-between">
+            {/* El espectro de audio se puede plegar para dejar sitio; la elección se recuerda. */}
+            <div className={cn('mx-2 mb-2 bg-instrument px-3', spectrumView.audioScope ? 'pt-2 pb-1' : 'py-1')}>
+              <button
+                type="button"
+                data-testid="audio-scope-toggle"
+                aria-expanded={spectrumView.audioScope}
+                aria-controls="audio-scope"
+                className={cn(
+                  'flex w-full items-center gap-2 text-left outline-none focus-visible:ring-2 focus-visible:ring-slice',
+                  spectrumView.audioScope && 'mb-1.5',
+                )}
+                onClick={() => setSpectrumView((view) => ({ ...view, audioScope: !view.audioScope }))}
+              >
+                <span
+                  aria-hidden
+                  className={cn('text-xs text-muted transition-transform', spectrumView.audioScope && 'rotate-90')}
+                >
+                  ▶
+                </span>
                 <span className="text-sm text-fg">Audio</span>
-                <span className="text-xs text-muted">{spectrumSimulated ? 'simulado' : 'tarjeta de sonido'}</span>
-              </div>
-              <AudioScope feed={audio.feed} passbandAudioHz={passbandAudioHz} />
+                <span className="ml-auto text-xs text-muted">
+                  {spectrumView.audioScope ? (spectrumSimulated ? 'simulado' : 'tarjeta de sonido') : 'mostrar espectro'}
+                </span>
+              </button>
+              {spectrumView.audioScope && (
+                <div id="audio-scope">
+                  <AudioScope feed={audio.feed} passbandAudioHz={passbandAudioHz} />
+                </div>
+              )}
             </div>
             <div className="flex flex-col gap-1.5 px-2 pb-2" role="group" aria-label="Ajustes de recepción">
               <div className="flex items-center gap-2">

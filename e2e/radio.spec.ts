@@ -100,37 +100,71 @@ test('conexión a la radio simulada y control completo', async ({ page }) => {
   await zoom.click()
   await expect(zoom).toHaveText('BAND')
 
+  // El dial se marca mientras se mantiene el botón; doble clic lo fija y los cursores lo mueven
+  // hasta otro doble clic o Escape.
   const sintonia = page.getByTestId('spectrum-tune')
+  const freq = page.getByTestId('vfo-frequency')
+  const cajaDial = await sintonia.boundingBox()
+  expect(cajaDial).not.toBeNull()
+  const enRejilla = { x: cajaDial!.width * 0.37, y: 30 }
   await expect(sliceLine).toHaveAttribute('data-selected', 'false')
-  await sintonia.focus()
+  await page.mouse.move(cajaDial!.x + enRejilla.x, cajaDial!.y + enRejilla.y)
+  await page.mouse.down()
+  await expect(sliceLine).toHaveAttribute('data-selected', 'true')
+  await page.mouse.up()
+  await expect(sliceLine).toHaveAttribute('data-selected', 'false')
+  // La sintonía respeta el paso: el clic cae en la rejilla de 1k.
+  await expect.poll(async () => Number((await freq.textContent())!.replaceAll('.', '')) % 1_000).toBe(0)
+
+  await sintonia.dblclick({ position: enRejilla })
   await expect(sliceLine).toHaveAttribute('data-selected', 'true')
   await expect(sintonia).toHaveAttribute('aria-pressed', 'true')
+  const fijada = Number((await freq.textContent())!.replaceAll('.', ''))
   await page.keyboard.press('ArrowRight')
-  await expect(page.getByTestId('vfo-frequency')).toHaveText('7.076.000')
+  await expect.poll(async () => Number((await freq.textContent())!.replaceAll('.', ''))).toBe(fijada + 1_000)
   await page.keyboard.press('ArrowLeft')
   await page.keyboard.press('ArrowLeft')
-  await expect(page.getByTestId('vfo-frequency')).toHaveText('7.074.000')
+  await expect.poll(async () => Number((await freq.textContent())!.replaceAll('.', ''))).toBe(fijada - 1_000)
+  // Fijado no se suelta solo, aunque pase el tiempo o el foco vaya a otro sitio.
+  await page.getByTestId('tuning-step').focus()
+  await page.waitForTimeout(1_000)
+  await expect(sliceLine).toHaveAttribute('data-selected', 'true')
   await page.keyboard.press('ArrowUp')
-  await expect(page.getByTestId('vfo-frequency')).toHaveText('7.075.000')
+  await expect.poll(async () => Number((await freq.textContent())!.replaceAll('.', ''))).toBe(fijada)
   await page.keyboard.press('Escape')
   await expect(sliceLine).toHaveAttribute('data-selected', 'false')
+  await page.keyboard.press('ArrowRight')
+  await expect.poll(async () => Number((await freq.textContent())!.replaceAll('.', ''))).toBe(fijada)
 
-  // La sintonía respeta el paso: el clic cae en la rejilla de 1k y, fuera de ella, un paso lleva a la rejilla.
-  const caja1k = await sintonia.boundingBox()
-  expect(caja1k).not.toBeNull()
-  await page.mouse.click(caja1k!.x + caja1k!.width * 0.37, caja1k!.y + 30)
+  // Otro doble clic también lo suelta.
+  await sintonia.dblclick({ position: enRejilla })
   await expect(sliceLine).toHaveAttribute('data-selected', 'true')
-  await expect.poll(async () => Number((await page.getByTestId('vfo-frequency').textContent())!.replaceAll('.', '')) % 1_000).toBe(0)
-  await page.keyboard.press('Escape')
+  await sintonia.dblclick({ position: enRejilla })
+  await expect(sliceLine).toHaveAttribute('data-selected', 'false')
+
+  // Táctil: el botón Fijar hace lo mismo que el doble clic.
+  const fijar = page.getByTestId('dial-lock')
+  await fijar.click()
+  await expect(fijar).toHaveAttribute('aria-pressed', 'true')
+  await expect(sliceLine).toHaveAttribute('data-selected', 'true')
+  await page.keyboard.press('ArrowRight')
+  await expect.poll(async () => Number((await freq.textContent())!.replaceAll('.', ''))).toBe(fijada + 1_000)
+  await fijar.click()
+  await expect(fijar).toHaveAttribute('aria-pressed', 'false')
+  await expect(sliceLine).toHaveAttribute('data-selected', 'false')
+
+  // Fuera de la rejilla, un paso de cursor lleva a la rejilla.
   await page.getByRole('button', { name: 'Editar frecuencia' }).click()
   await page.getByLabel('Frecuencia en hercios').fill('7074350')
   await page.getByLabel('Frecuencia en hercios').press('Enter')
-  await expect(page.getByTestId('vfo-frequency')).toHaveText('7.074.350')
+  await expect(freq).toHaveText('7.074.350')
   await sintonia.focus()
+  await page.keyboard.press('Enter')
+  await expect(sliceLine).toHaveAttribute('data-selected', 'true')
   await page.keyboard.press('ArrowRight')
-  await expect(page.getByTestId('vfo-frequency')).toHaveText('7.075.000')
-  // Sin usarlo unos segundos, el dial se desmarca solo.
-  await expect(sliceLine).toHaveAttribute('data-selected', 'false', { timeout: 6_000 })
+  await expect(freq).toHaveText('7.075.000')
+  await page.keyboard.press('Escape')
+  await expect(sliceLine).toHaveAttribute('data-selected', 'false')
 
   await expect(page.getByTestId('s-meter')).toBeVisible()
   const volume = page.getByTestId('volume')

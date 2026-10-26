@@ -43,3 +43,11 @@ export const SPECTRUM_FILL: ReadonlyArray<[number, string]> = [
   [0.55, 'rgb(175 245 70)'],
   [1, 'rgb(250 250 140)'],
 ]
+
+// Trazos «línea» y «suave»: halo de la curva y relleno que se desvanece hacia el fondo.
+export const paletteCurveGlow = 'rgba(170, 250, 120, 0.55)'
+export const SPECTRUM_SOFT_FILL: ReadonlyArray<[number, string]> = [
+  [0, 'rgba(120, 220, 110, 0)'],
+  [0.35, 'rgba(130, 235, 110, 0.12)'],
+  [1, 'rgba(190, 250, 130, 0.42)'],
+]

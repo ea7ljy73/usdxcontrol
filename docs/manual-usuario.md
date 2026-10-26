@@ -35,9 +35,11 @@ Los detalles de permisos y reglas udev están en [instalacion-electron.md](insta
 - **Clic** en el espectro: sintoniza esa frecuencia, ajustada a la rejilla del paso.
 - **Arrastrar**: mueve el dial por pasos enteros.
 - **Rueda del ratón**: sube o baja un paso.
-- **Cursores**, con el panadaptador seleccionado: mueven el dial un paso (mantenlos pulsados para repetir).
+- **Marcar el dial**: el dial queda marcado mientras mantienes pulsado el botón del ratón y se desmarca al soltarlo. Con **doble clic** (o Intro con el teclado) queda fijado: los **cursores** lo mueven paso a paso (mantenlos pulsados para repetir). Se suelta con otro doble clic o con **Escape**.
 - **Menú izquierdo** (botón ←):
   - **Audio** conecta el audio de la radio a la tarjeta de sonido para ver el espectro de audio. Sin SDR, el panorámico se dibuja a partir de este audio.
+  - **Fijar / Soltar**: marca o desmarca el dial, igual que el doble clic. Pensado para pantallas táctiles.
+  - **Relleno / Línea / Suave**: estilo del espectro. *Relleno* pinta el degradado de colores bajo la curva, *Línea* deja solo la curva y *Suave* añade un relleno tenue. La app recuerda tu elección.
   - **Ancho** del panadaptador: pulsa para cambiar el zoom.
 - La bandera del slice muestra la antena, la banda, el filtro, el modo, la frecuencia, el S-métrico y los indicadores NB, NR, ANF y AGC.
 
@@ -52,7 +54,7 @@ Los detalles de permisos y reglas udev están en [instalacion-electron.md](insta
 
 ### Panel derecho
 
-- **S-Meter** y espectro de **Audio**.
+- **S-Meter** y espectro de **Audio**. Pulsa la cabecera *Audio* para plegar o desplegar su espectro y ganar sitio; la app recuerda si lo dejaste plegado.
 - **AGC** y **NR**: pulsa NR para subir el nivel de reducción de ruido.
 - **Band**: salta a la frecuencia habitual de cada banda, de 160 m a 10 m.
 - **Mode**: LSB, USB, CW, FM y AM, más FT8 y FT4, que abren la estación digital.

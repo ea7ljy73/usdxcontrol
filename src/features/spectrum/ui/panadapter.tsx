@@ -3,7 +3,6 @@ import {
   useEffect,
   useRef,
   useState,
-  type KeyboardEvent,
   type MouseEvent,
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
@@ -15,10 +14,12 @@ import {
   panBackground,
   paletteBackground,
   paletteCurve,
+  paletteCurveGlow,
   paletteGrid,
   noAudioShade,
   outOfBandShade,
   SPECTRUM_FILL,
+  SPECTRUM_SOFT_FILL,
 } from '../domain/palette'
 import type { SpectrumFeed } from '../application/ports'
 import type { AudioView } from '../domain/audioMapping'
@@ -32,7 +33,6 @@ const DB_MAX = -20
 const DB_LABELS = [-40, -60, -80, -100]
 const SPECTRUM_RATIO = 0.42
 const RULER_HEIGHT = 22
-const DESELECT_AFTER_MS = 4_000
 // Filas de cascada por segundo (una fila = 1 px CSS): fija la escala de tiempo.
 const WATERFALL_ROWS_PER_S = 12
 const WATERFALL_LABEL_EVERY_S = 5
@@ -53,6 +53,15 @@ const clampRatio = (ratio: number) => Math.min(1, Math.max(0, ratio))
 
 export type PassbandHz = { lowHz: number; highHz: number }
 
+// Trazo del espectro, como en otros programas SDR: relleno con degradado (SDR#),
+// solo la línea (GQRX sin relleno) o línea con un relleno tenue (SDR++).
+export type SpectrumTrace = 'relleno' | 'linea' | 'suave'
+const TRACES: { id: SpectrumTrace; label: string; name: string }[] = [
+  { id: 'relleno', label: 'Relleno', name: 'relleno con degradado' },
+  { id: 'linea', label: 'Línea', name: 'solo línea' },
+  { id: 'suave', label: 'Suave', name: 'línea con relleno tenue' },
+]
+
 type Props = {
   disabled?: boolean
   simulated?: boolean
@@ -71,6 +80,8 @@ type Props = {
   tuneStepHz: number
   onWheelTune?: (sign: 1 | -1) => void
   onDragTune?: (steps: number) => void
+  trace?: SpectrumTrace
+  onTraceChange?: (trace: SpectrumTrace) => void
 }
 
 type DrawParams = {
@@ -79,6 +90,7 @@ type DrawParams = {
   spanHz: number
   view: AudioView
   band: FreqRange | null
+  trace: SpectrumTrace
 }
 
 const ArrowIcon = ({ open }: { open: boolean }) => (
@@ -122,6 +134,8 @@ export function Panadapter({
   onTuneOffset,
   onWheelTune,
   onDragTune,
+  trace = 'relleno',
+  onTraceChange,
 }: Props) {
   const spectrumRef = useRef<HTMLCanvasElement | null>(null)
   const waterfallRef = useRef<HTMLCanvasElement | null>(null)
@@ -226,7 +240,7 @@ export function Panadapter({
 
   useEffect(() => {
     feedRef.current = feed
-    paramsRef.current = centerHz === null ? null : { vfoHz, leftHz, spanHz, view, band }
+    paramsRef.current = centerHz === null ? null : { vfoHz, leftHz, spanHz, view, band, trace }
     tickRatiosRef.current = rulerTicks.map((tick) => tick.ratio)
 
     // La cascada está anclada a RF: si la vista se desplaza, la historia se desplaza con ella.
@@ -273,7 +287,7 @@ export function Panadapter({
     }
 
     const area = new Path2D()
-    const trace = new Path2D()
+    const curve = new Path2D()
     let inRun = false
     for (let x = 0; x <= width; x++) {
       const t = x < width ? intensities[x] : Number.NaN
@@ -289,13 +303,13 @@ export function Panadapter({
       if (!inRun) {
         inRun = true
         area.moveTo(x, height)
-        trace.moveTo(x, y)
+        curve.moveTo(x, y)
       } else {
-        trace.lineTo(x, y)
+        curve.lineTo(x, y)
       }
       area.lineTo(x, y)
       area.lineTo(x + 1, y)
-      trace.lineTo(x + 1, y)
+      curve.lineTo(x + 1, y)
     }
     sCtx.fillStyle = noAudioShade
     for (let x = 0; x < width; x++) {
@@ -305,13 +319,31 @@ export function Panadapter({
       sCtx.fillRect(x, 0, end - x, height)
       x = end
     }
-    const gradient = sCtx.createLinearGradient(0, height, 0, 0)
-    SPECTRUM_FILL.forEach(([at, color]) => gradient.addColorStop(at, color))
-    sCtx.fillStyle = gradient
-    sCtx.fill(area)
+    if (params.trace === 'relleno') {
+      const gradient = sCtx.createLinearGradient(0, height, 0, 0)
+      SPECTRUM_FILL.forEach(([at, color]) => gradient.addColorStop(at, color))
+      sCtx.fillStyle = gradient
+      sCtx.fill(area)
+    } else if (params.trace === 'suave') {
+      const gradient = sCtx.createLinearGradient(0, height, 0, 0)
+      SPECTRUM_SOFT_FILL.forEach(([at, color]) => gradient.addColorStop(at, color))
+      sCtx.fillStyle = gradient
+      sCtx.fill(area)
+    }
     sCtx.strokeStyle = paletteCurve
-    sCtx.lineWidth = 1
-    sCtx.stroke(trace)
+    sCtx.lineJoin = 'round'
+    if (params.trace === 'relleno') {
+      sCtx.lineWidth = 1
+      sCtx.stroke(curve)
+    } else {
+      // Sin el relleno opaco la línea lo es todo: más gruesa y con un halo suave.
+      const dpr = window.devicePixelRatio || 1
+      sCtx.lineWidth = Math.max(1.5, 1.5 * dpr)
+      sCtx.shadowColor = paletteCurveGlow
+      sCtx.shadowBlur = 6 * dpr
+      sCtx.stroke(curve)
+      sCtx.shadowBlur = 0
+    }
 
     // La cascada guarda el pico de cada columna entre filas y avanza a ritmo fijo,
     // así las marcas de tiempo de la derecha son ciertas.
@@ -366,30 +398,58 @@ export function Panadapter({
   const dragStateRef = useRef<{ active: boolean; startX: number; lastX: number; acc: number } | null>(null)
   const overlayRef = useRef<HTMLButtonElement | null>(null)
 
-  const [selected, setSelected] = useState(false)
-  const deselectTimerRef = useRef<number | null>(null)
+  // Dial marcado: mientras se mantiene el botón del ratón, o fijado con doble clic (Intro con teclado,
+  // o el botón Fijar en pantallas táctiles) hasta otro doble clic o Escape. Fijado, los cursores lo mueven.
+  const [held, setHeld] = useState(false)
+  const [locked, setLocked] = useState(false)
+  const selected = held || locked
+  const lockedNow = locked && !disabled
+  if (locked && disabled) setLocked(false)
 
-  // El dial seleccionado se suelta solo tras unos segundos sin usarlo.
-  const holdSelection = useCallback(() => {
-    if (deselectTimerRef.current !== null) window.clearTimeout(deselectTimerRef.current)
-    deselectTimerRef.current = null
-  }, [])
-  const armDeselect = useCallback(() => {
-    holdSelection()
-    deselectTimerRef.current = window.setTimeout(() => overlayRef.current?.blur(), DESELECT_AFTER_MS)
-  }, [holdSelection])
-  useEffect(() => holdSelection, [holdSelection])
+  const toggleLock = () => {
+    if (disabled) return
+    setLocked((current) => !current)
+    overlayRef.current?.focus()
+  }
+
+  // Fijado, los cursores y Escape actúan aunque el foco esté en otro control (salvo campos y diálogos).
+  // Va en captura para que el atajo global de ↑/↓ no sume otro paso.
+  useEffect(() => {
+    if (!lockedNow) return
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.altKey || event.ctrlKey || event.metaKey) return
+      const target = event.target instanceof Element ? event.target : null
+      if (target?.closest('input,select,textarea,[role="dialog"]')) return
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        event.stopPropagation()
+        setLocked(false)
+        return
+      }
+      const sign = ({ ArrowUp: 1, ArrowRight: 1, ArrowDown: -1, ArrowLeft: -1 } as const)[event.key as string]
+      if (sign === undefined || !onWheelTune) return
+      event.preventDefault()
+      event.stopPropagation()
+      onWheelTune(sign)
+    }
+    window.addEventListener('keydown', onKeyDown, { capture: true })
+    return () => window.removeEventListener('keydown', onKeyDown, { capture: true })
+  }, [lockedNow, onWheelTune])
 
   const handleTune = (event: MouseEvent<HTMLButtonElement>) => {
-    // Un "clic" de teclado (Enter/Espacio) no trae posición: no debe sintonizar al borde izquierdo.
-    if (event.detail === 0 || dragStateRef.current?.active || vfoHz === null) return
+    // Un "clic" de teclado (Enter/Espacio) no trae posición: fija o suelta el dial en vez de sintonizar.
+    if (event.detail === 0) {
+      toggleLock()
+      return
+    }
+    if (dragStateRef.current?.active || vfoHz === null) return
     const ratio = event.nativeEvent.offsetX / event.currentTarget.clientWidth
     const target = Math.round((leftHz + ratio * spanHz) / tuneStepHz) * tuneStepHz
     onTuneOffset(target - vfoHz)
   }
 
   const onOverlayPointerDown = (event: ReactPointerEvent<HTMLButtonElement>) => {
-    holdSelection()
+    setHeld(true)
     const drag = { active: false, startX: event.clientX, lastX: event.clientX, acc: 0 }
     dragStateRef.current = drag
     event.currentTarget.setPointerCapture(event.pointerId)
@@ -413,7 +473,7 @@ export function Panadapter({
   }
 
   const onOverlayPointerUp = () => {
-    armDeselect()
+    setHeld(false)
     const drag = dragStateRef.current
     if (drag && drag.active) {
       setTimeout(() => {
@@ -431,26 +491,12 @@ export function Panadapter({
       if (disabled) return
       event.preventDefault()
       onWheelTune(event.deltaY < 0 ? 1 : -1)
-      if (document.activeElement === overlay) armDeselect()
     }
     overlay.addEventListener('wheel', handler, { passive: false })
     return () => overlay.removeEventListener('wheel', handler)
-  }, [disabled, onWheelTune, armDeselect])
+  }, [disabled, onWheelTune])
 
-  // Con el panadaptador seleccionado, los cursores mueven el dial un paso (y repiten al mantenerlos).
-  const onOverlayKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
-    if (event.key === 'Escape') {
-      event.currentTarget.blur()
-      return
-    }
-    if (disabled || !onWheelTune || event.altKey || event.ctrlKey || event.metaKey) return
-    const sign = ({ ArrowUp: 1, ArrowRight: 1, ArrowDown: -1, ArrowLeft: -1 } as const)[event.key as string]
-    if (sign === undefined) return
-    event.preventDefault()
-    onWheelTune(sign)
-    armDeselect()
-  }
-
+  const traceOption = TRACES.find((option) => option.id === trace) ?? TRACES[0]
   const audioActive = feedState === 'on'
   const waterfallLabels: number[] = []
   for (let seconds = WATERFALL_LABEL_EVERY_S; seconds * WATERFALL_ROWS_PER_S < waterfallCssHeight - 8; seconds += WATERFALL_LABEL_EVERY_S) {
@@ -562,23 +608,15 @@ export function Panadapter({
         type="button"
         ref={overlayRef}
         data-testid="spectrum-tune"
-        aria-label="Sintonizar en el espectro, cursores para mover el dial"
+        aria-label="Sintonizar en el espectro; doble clic o Intro fija el dial para moverlo con los cursores"
         aria-pressed={selected}
         disabled={disabled}
-        onFocus={() => {
-          setSelected(true)
-          // Con el botón pulsado (arrastre) la cuenta empieza al soltar.
-          if (dragStateRef.current === null) armDeselect()
-        }}
-        onBlur={() => {
-          holdSelection()
-          setSelected(false)
-        }}
-        onKeyDown={onOverlayKeyDown}
         onClick={handleTune}
+        onDoubleClick={toggleLock}
         onPointerDown={onOverlayPointerDown}
         onPointerMove={onOverlayPointerMove}
         onPointerUp={onOverlayPointerUp}
+        onPointerCancel={onOverlayPointerUp}
         className="absolute inset-0 h-full w-full cursor-crosshair touch-none outline-none disabled:cursor-default"
       />
 
@@ -651,6 +689,26 @@ export function Panadapter({
             >
               Audio
             </Button>
+            <Button
+              data-testid="dial-lock"
+              className={cn('h-11 w-full px-0 text-sm', locked && 'bg-navy-hover text-slice')}
+              aria-label={locked ? 'Soltar dial' : 'Fijar dial, mover con los cursores'}
+              aria-pressed={locked}
+              disabled={disabled}
+              onClick={toggleLock}
+            >
+              {locked ? 'Soltar' : 'Fijar'}
+            </Button>
+            {onTraceChange && (
+              <Button
+                data-testid="spectrum-trace"
+                className="h-11 w-full px-0 text-sm"
+                aria-label={`Espectro: ${traceOption.name}, clic para cambiar`}
+                onClick={() => onTraceChange(TRACES[(TRACES.indexOf(traceOption) + 1) % TRACES.length].id)}
+              >
+                {traceOption.label}
+              </Button>
+            )}
             <Button
               data-testid="spectrum-zoom"
               className="h-11 w-full px-0 text-sm"

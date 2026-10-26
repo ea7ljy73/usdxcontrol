@@ -42,6 +42,16 @@ test('el SDR da el espectro de RF y deja de recibir mientras transmite el uSDX',
   await expect(page.getByTestId('spectrum-source')).toHaveText('SDR simulado')
   await expect.poll(() => spectrumColors(page)).toBeGreaterThan(before + 10)
 
+  // Trazo del espectro: relleno, solo línea o línea con relleno tenue; se recuerda.
+  const trazo = page.getByTestId('spectrum-trace')
+  await expect(trazo).toHaveAccessibleName('Espectro: relleno con degradado, clic para cambiar')
+  await trazo.click()
+  await expect(trazo).toHaveAccessibleName('Espectro: solo línea, clic para cambiar')
+  await expect.poll(() => spectrumColors(page)).toBeGreaterThan(before + 10)
+  await trazo.click()
+  await expect(trazo).toHaveAccessibleName('Espectro: línea con relleno tenue, clic para cambiar')
+  await expect.poll(() => spectrumColors(page)).toBeGreaterThan(before + 10)
+
   // PTT del uSDX: el SDR se pausa y vuelve al soltar.
   await page.getByRole('heading', { name: 'uSDX Control' }).click()
   await page.keyboard.down(' ')
@@ -61,4 +71,24 @@ test('el SDR da el espectro de RF y deja de recibir mientras transmite el uSDX',
   await expect(page.getByTestId('spectrum-source')).toHaveCount(0)
 
   expect(errors).toEqual([])
+})
+
+test('el estilo del espectro y el espectro de audio plegado se recuerdan al recargar', async ({ page }) => {
+  await page.goto('/?radio=mock')
+  const trazo = page.getByTestId('spectrum-trace')
+  await trazo.click()
+  await expect(trazo).toHaveText('Línea')
+
+  const audio = page.getByTestId('audio-scope-toggle')
+  await expect(audio).toHaveAttribute('aria-expanded', 'true')
+  await expect(page.locator('#audio-scope')).toBeVisible()
+  await audio.click()
+  await expect(audio).toHaveAttribute('aria-expanded', 'false')
+  await expect(page.locator('#audio-scope')).toHaveCount(0)
+
+  await page.reload()
+  await expect(page.getByTestId('spectrum-trace')).toHaveText('Línea')
+  await expect(page.getByTestId('audio-scope-toggle')).toHaveAttribute('aria-expanded', 'false')
+  await page.getByTestId('audio-scope-toggle').click()
+  await expect(page.locator('#audio-scope')).toBeVisible()
 })
