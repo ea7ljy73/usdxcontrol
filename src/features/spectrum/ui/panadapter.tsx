@@ -59,6 +59,8 @@ type Props = {
   feed: SpectrumFeed | null
   feedState: FeedState
   onToggleAudio: () => void
+  // Espectro de RF de un SDR en lugar del audio de la radio (muted: el uSDX transmite).
+  sdr?: { muted: boolean } | null
   vfoHz?: number | null
   band?: FreqRange | null
   passband?: PassbandHz | null
@@ -110,6 +112,7 @@ export function Panadapter({
   feed,
   feedState,
   onToggleAudio,
+  sdr = null,
   vfoHz = null,
   band = null,
   passband = null,
@@ -608,15 +611,25 @@ export function Panadapter({
         </div>
       )}
 
-      {(audioActive || feedState === 'error') && (
+      {sdr ? (
         <span
-          className={cn(
-            'pointer-events-none absolute top-1.5 right-14 z-10 text-xs font-medium',
-            audioActive ? 'text-rx' : 'text-tx',
-          )}
+          data-testid="spectrum-source"
+          className={cn('pointer-events-none absolute top-1.5 right-14 z-10 text-xs font-medium', sdr.muted ? 'text-tx' : 'text-rx')}
         >
-          {audioActive ? (simulated ? 'audio simulado' : 'audio') : 'sin audio'}
+          {sdr.muted ? 'SDR en pausa · TX' : simulated ? 'SDR simulado' : 'SDR'}
         </span>
+      ) : (
+        (audioActive || feedState === 'error') && (
+          <span
+            data-testid="spectrum-source"
+            className={cn(
+              'pointer-events-none absolute top-1.5 right-14 z-10 text-xs font-medium',
+              audioActive ? 'text-rx' : 'text-tx',
+            )}
+          >
+            {audioActive ? (simulated ? 'audio simulado' : 'audio') : 'sin audio'}
+          </span>
+        )
       )}
 
       <nav aria-label="Menú del panadaptador" className="absolute top-0 left-0 z-20 flex w-16 flex-col">

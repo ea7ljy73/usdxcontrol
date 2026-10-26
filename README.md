@@ -1,32 +1,50 @@
-# React + TypeScript + Vite
+# uSDX Control
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Control del transceptor **uSDX** desde el ordenador, con una pantalla al estilo SmartSDR: panadaptador y cascada, VFO A/B, bandas, modos, S-métrico y PTT por CAT. Incluye una estación **FT8/FT4** completa (al estilo WSJT-X) y admite un **RTL-SDR** como receptor de panorámico, que se calla solo cuando el uSDX transmite.
 
-Currently, two official plugins are available:
+![Estación FT8](docs/capturas/ft8.png)
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Descargas
 
-## React Compiler
+Los instaladores de cada versión están en **[Releases](https://github.com/ea7ljy73/usdxcontrol/releases/latest)**.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+| Sistema | Fichero | Notas |
+| --- | --- | --- |
+| Windows 10/11 (x64) | `usdxcontrol-<versión>-win-x64.exe` | Instalador NSIS |
+| macOS Apple Silicon | `usdxcontrol-<versión>-mac-arm64.dmg` | Sin firmar: la primera vez, clic derecho → *Abrir* |
+| macOS Intel | `usdxcontrol-<versión>-mac-x64.dmg` | Sin firmar: la primera vez, clic derecho → *Abrir* |
+| Linux (cualquier distribución) | `usdxcontrol-<versión>-linux-x86_64.AppImage` | `chmod +x` y ejecutar |
+| Linux Debian/Ubuntu | `usdxcontrol-<versión>-linux-amd64.deb` | `sudo apt install ./usdxcontrol-….deb` |
 
-## Expanding the Oxlint configuration
+[Todas las versiones](https://github.com/ea7ljy73/usdxcontrol/releases) · [Manual de usuario](docs/manual-usuario.md) · [Instalación y permisos del puerto serie](docs/instalacion-electron.md)
 
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
+## Capturas
 
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+| Panorámico con RTL-SDR | Ajustes del SDR |
+| --- | --- |
+| ![Espectro de la banda de 40 m con el SDR](docs/capturas/sdr-espectro.png) | ![Diálogo del receptor SDR](docs/capturas/sdr-ajustes.png) |
+
+## Qué hace
+
+- **Control CAT** del uSDX por USB-serie: frecuencia, VFO A/B, RIT, modo, AGC, NR, volumen y PTT (también con la barra espaciadora).
+- **Panadaptador y cascada** con sintonía por clic, arrastre, rueda o cursores.
+- **FT8 y FT4**: decodificación, Band Activity y Rx Frequency, Tx1–Tx6, auto secuencia, Call 1st, Hold Tx Freq, Tune, watchdog, mapa de estaciones, libro de guardia con importación y exportación ADIF y marcas de país o indicativo nuevo.
+- **RTL-SDR** (V3 y clones como HTOOL) por USB directo o por `rtl_tcp`. El SDR deja de recibir mientras el uSDX transmite.
+- **Modo demostración** sin radio: abre la app con `?radio=mock` en la versión web.
+
+## Desarrollo
+
+Requiere Node 24 y pnpm 10.
+
+```sh
+pnpm install
+pnpm dev            # versión web en http://localhost:5173 (?radio=mock para simular)
+pnpm dev:desktop    # app de escritorio
+pnpm lint && pnpm test && pnpm test:e2e && pnpm test:desktop
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+Cada etiqueta `v*` subida a GitHub lanza el workflow `release.yml`, que compila los instaladores de Windows, macOS y Linux y los publica en Releases:
+
+```sh
+git tag v0.1.0 && git push origin v0.1.0
+```

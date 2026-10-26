@@ -14,4 +14,10 @@ contextBridge.exposeInMainWorld('api', {
   onData: (listener: (chunk: string) => void) => subscribe('radio:data', listener),
   onStatus: (listener: CallableFunction) =>
     subscribe('radio:status', (status) => listener(status)),
+  sdr: {
+    open: (options: { host: string; port: number }) => ipcRenderer.invoke('sdr:open', options),
+    command: (command: number, value: number) => ipcRenderer.invoke('sdr:command', command, value),
+    read: (bytes: number) => ipcRenderer.invoke('sdr:read', bytes),
+    close: () => ipcRenderer.invoke('sdr:close'),
+  },
 })

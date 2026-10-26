@@ -20,6 +20,8 @@ import { digiDialHz } from '@/features/digital/domain/digiFrequencies'
 import { DIGI_MODES, type DigiMode } from '@/features/digital/domain/slots'
 import { DigiWorkspace } from '@/features/digital/ui/digiWorkspace'
 import { useDigital } from '@/features/digital/ui/useDigital'
+import { SdrButton } from '@/features/sdr/ui/sdrButton'
+import { useSdr } from '@/features/sdr/ui/useSdr'
 import { BANDS, bandFromFrequency } from '../domain/band'
 import type { SerialPortChoice } from '../application/ports'
 import { MAX_FREQUENCY_HZ, MIN_FREQUENCY_HZ, formatFrequency } from '../domain/frequency'
@@ -66,6 +68,9 @@ export function RadioScreen() {
   const audio = useSpectrumFeed(spectrumFeeds.audio)
   const { receiver: digi, receiverState: digiState, operator: digiOperator } = useDigital()
   const [digiOn, setDigiOn] = useState(false)
+  const { sdr, sdrState } = useSdr()
+  const sdrActive = sdrState.status === 'on' || sdrState.status === 'muted'
+  const [sdrFeed] = useState(() => sdr.feed())
   const [stepIndex, setStepIndex] = useState(3)
   const [scanDirection, setScanDirection] = useState<0 | 1 | -1>(0)
   const [editing, setEditing] = useState(false)
@@ -97,6 +102,15 @@ export function RadioScreen() {
     passbandHz: null,
   })
   const band = snapshot.frequency !== null ? bandFromFrequency(snapshot.frequency) : null
+  // El SDR se centra para cubrir la banda (o el VFO) que se ve en el panadaptador.
+  const sdrBandFrom = band?.fromHz ?? null
+  const sdrBandTo = band?.toHz ?? null
+  useEffect(() => {
+    sdr.follow(
+      snapshot.frequency,
+      sdrBandFrom !== null && sdrBandTo !== null ? { fromHz: sdrBandFrom, toHz: sdrBandTo } : null,
+    )
+  }, [sdr, snapshot.frequency, sdrBandFrom, sdrBandTo])
   const { label: statusLabel, tone: statusTone } = statusLabels[snapshot.linkStatus]
   const portChoicesAvailable = portSelection !== null && !connected && !connecting
 
@@ -492,6 +506,7 @@ export function RadioScreen() {
           >
             {connecting ? 'Conectando' : connected ? 'Desconectar' : 'Conectar'}
           </Button>
+          <SdrButton />
           <UtcClock />
         </div>
       </header>
@@ -504,8 +519,9 @@ export function RadioScreen() {
             <Panadapter
               disabled={!connected}
               simulated={spectrumSimulated}
-              feed={audio.feed}
-              feedState={audio.state}
+              feed={sdrActive ? sdrFeed : audio.feed}
+              feedState={sdrActive ? 'on' : audio.state}
+              sdr={sdrActive ? { muted: sdrState.status === 'muted' } : null}
               onToggleAudio={() => (audio.state === 'on' ? audio.stop() : void audio.start())}
               vfoHz={snapshot.frequency}
               band={band ? { fromHz: band.fromHz, toHz: band.toHz } : null}

@@ -11,6 +11,10 @@ import { createFt8Operator, type Ft8Operator } from '@/features/digital/applicat
 import type { AudioDeviceList, DigiTransmitter, KeyValueStore, LogFiles, UtcSource } from '@/features/digital/application/ports'
 import { downloadAdif, readAdifFile } from '@/features/digital/infrastructure/adifFile'
 import { encodeFt8 } from '@/features/digital/infrastructure/ft8Encoder'
+import { createSdrReceiver, type SdrReceiver } from '@/features/sdr/application/sdrReceiver'
+import { rtlTcpBridge } from '@/features/sdr/infrastructure/rtlTcpBridge'
+import { simulatedSdr } from '@/features/sdr/infrastructure/simulatedSdr'
+import { webUsbRtlSdr } from '@/features/sdr/infrastructure/webUsbRtlSdr'
 import { httpUtcSource } from '@/features/digital/infrastructure/httpUtcSource'
 import { localLogbook, localStore } from '@/features/digital/infrastructure/localStore'
 import { mediaDeviceList } from '@/features/digital/infrastructure/mediaDevices'
@@ -35,6 +39,7 @@ type Container = {
   spectrumSimulated: boolean
   spectrumFeeds: SpectrumFeeds
   digital: Digital
+  sdr: SdrReceiver
 }
 
 // FT8/FT4: receptor, operador del QSO y lo que necesita la pantalla (hora y tarjetas).
@@ -130,6 +135,18 @@ const digital: Digital = {
 // El operador vigila los ciclos desde el arranque (solo transmite si se le pide).
 digital.operator.start()
 
+// SDR para el panadaptador: RTL-SDR por USB directo (WebUSB) o por red (rtl_tcp, solo en
+// escritorio). En simulación, un SDR que genera IQ con señales de 40 y 20 m.
+const hasWebUsb = typeof navigator !== 'undefined' && 'usb' in navigator
+const sdr = createSdrReceiver({
+  connectors: useMock
+    ? { usb: simulatedSdr }
+    : { usb: hasWebUsb ? webUsbRtlSdr : undefined, tcp: bridgeApi ? rtlTcpBridge(bridgeApi.sdr) : undefined },
+  store: localStore,
+})
+// El SDR deja de recibir mientras el uSDX transmite.
+session.subscribe((snapshot) => sdr.setTx(snapshot.tx))
+
 const container: Container = {
   session,
   linkKind: useMock ? 'CAT simulado' : bridgeApi ? 'Electron · serialport' : 'WebSerial',
@@ -142,6 +159,7 @@ const container: Container = {
     rf: null,
   },
   digital,
+  sdr,
 }
 
 export { container, type Container }

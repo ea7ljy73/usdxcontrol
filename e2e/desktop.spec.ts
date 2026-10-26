@@ -43,3 +43,73 @@ test('FT8 decodifica en la app de escritorio', async () => {
   expect(errors).toEqual([])
   await app.close()
 })
+
+// rtl_tcp por el proceso principal, contra un servidor falso: cabecera de 12 bytes,
+// órdenes de 5 bytes y flujo IQ continuo.
+test('SDR por rtl_tcp en la app de escritorio', async () => {
+  const net = await import('node:net')
+  const commands: string[] = []
+  let iqByte = 0
+  const clients: import('node:net').Socket[] = []
+  const server = net.createServer((client) => {
+    clients.push(client)
+    const header = Buffer.from('RTL0\0\0\0\x05\0\0\0\x1d', 'binary')
+    client.write(header)
+    let pending = Buffer.alloc(0)
+    client.on('data', (chunk) => {
+      pending = Buffer.concat([pending, chunk])
+      while (pending.length >= 5) {
+        commands.push(`${pending[0]}:${pending.readUInt32BE(1)}`)
+        pending = pending.subarray(5)
+      }
+    })
+    const timer = setInterval(() => {
+      // Bloques impares a propósito: el cliente tiene que realinear los pares I/Q.
+      const block = Buffer.alloc(16_383)
+      for (let i = 0; i < block.length; i++) block[i] = (iqByte++ % 2) * 255
+      if (!client.destroyed) client.write(block)
+    }, 5)
+    client.on('close', () => clearInterval(timer))
+    client.on('error', () => clearInterval(timer))
+  })
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+  const port = (server.address() as { port: number }).port
+
+  const app = await electron.launch({ args: ['.'] })
+  const window = await app.firstWindow()
+  const errors: string[] = []
+  window.on('console', (msg) => {
+    if (msg.type() === 'error') errors.push(msg.text())
+  })
+
+  await window.getByTestId('sdr-button').click()
+  const dialog = window.getByRole('dialog', { name: 'Receptor SDR' })
+  await dialog.getByRole('combobox', { name: 'Conexión' }).selectOption('tcp')
+  await dialog.getByRole('textbox', { name: 'Servidor rtl_tcp' }).fill('127.0.0.1')
+  await dialog.getByRole('textbox', { name: 'Puerto' }).fill(String(port))
+  await dialog.getByRole('button', { name: 'Conectar SDR' }).click()
+  await expect(dialog.getByTestId('sdr-status')).toHaveText('Recibiendo')
+  // Ancho de muestreo, ppm, muestreo directo Q y ganancia automática.
+  await expect.poll(() => commands.join(' ')).toBe('2:2048000 5:0 9:2 3:0')
+
+  // Las muestras llegan alineadas: siempre empiezan en una I (aquí, 0) y con su Q (255).
+  const block = await window.evaluate(async () => Array.from(await window.api!.sdr.read(64)))
+  expect(block).toHaveLength(64)
+  expect(block.slice(0, 4)).toEqual([0, 255, 0, 255])
+
+  // Si el servidor se cae, el proceso principal no se cae: la lectura falla con un motivo.
+  clients.forEach((client) => client.destroy())
+  server.close()
+  const failure = await window.evaluate(() =>
+    window.api!.sdr.read(64).then(
+      () => 'ok',
+      (error: Error) => error.message,
+    ),
+  )
+  expect(failure).toMatch(/rtl_tcp (cerró la conexión|desconectado|no conectado)/)
+  expect(await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length)).toBe(1)
+  await dialog.getByRole('button', { name: 'Desconectar SDR' }).click()
+  await expect(dialog.getByTestId('sdr-status')).toHaveText('Desconectado')
+  expect(errors).toEqual([])
+  await app.close()
+})

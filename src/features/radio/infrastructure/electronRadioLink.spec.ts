@@ -12,6 +12,12 @@ const createApi = (): RadioBridgeApi => ({
   ]),
   onData: () => () => undefined,
   onStatus: () => () => undefined,
+  sdr: {
+    open: vi.fn(async () => undefined),
+    command: vi.fn(async () => undefined),
+    read: vi.fn(async () => new Uint8Array()),
+    close: vi.fn(async () => undefined),
+  },
 })
 
 describe('electronRadioLink', () => {

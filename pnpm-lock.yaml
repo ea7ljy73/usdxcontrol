@@ -15,6 +15,9 @@ importers:
       '@axe-core/playwright':
         specifier: ^4.14.0
         version: 4.14.0(playwright-core@1.64.1)
+      '@jtarrio/webrtlsdr':
+        specifier: 3.0.6
+        version: 3.0.6
       '@playwright/test':
         specifier: ^1.64.1
         version: 1.64.1
@@ -318,6 +321,12 @@ packages:
 
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
+
+  '@jtarrio/signals@0.10.3':
+    resolution: {integrity: sha512-5LU8aqCOtzscqTjdz900RaCecRpHGlmjuUX/ggt4dW1cse85zae9qUEQU7EeL01sD46ADRdILZc6KBzQpVXzxQ==}
+
+  '@jtarrio/webrtlsdr@3.0.6':
+    resolution: {integrity: sha512-+P8dsbXQ/6Mwru/vV613yHH68nHFyUJ9zPK68hE/Hh2F3jwyirUAjjBtIAfN/MlJbFioMJ3NS6dMGrRj9deFvw==}
 
   '@malept/cross-spawn-promise@2.0.0':
     resolution: {integrity: sha512-1DpKU0Z5ThltBwjNySMC14g0CkbyhCaz9FkhxqNsZI6uAPJXFS8cMXlBKo26FJ8ZuW6S9GCMcR9IO5k2X5/9Fg==}
@@ -1495,6 +1504,9 @@ packages:
 
   '@types/responselike@1.0.3':
     resolution: {integrity: sha512-H/+L+UkTV33uf49PH5pCAUBVPNj2nDBXTN+qS1dOwyyg24l3CcicicCA7ca+HMvJBZcFgl5r8e+RR6elsb4Lyw==}
+
+  '@types/w3c-web-usb@1.0.14':
+    resolution: {integrity: sha512-Qu3Nn6JFuF4+sHKYl+IcX9vYiI40ogleXzFFSxoE1W94rG98o/kXs8uJ0QSfFzuwBCZWlGfUGpPkgwuuX4PchA==}
 
   '@vitejs/plugin-react@6.1.2':
     resolution: {integrity: sha512-fhJNGUdscQa4HkI0xFxwonWyhnVReCPDbXI7FH7jmzpnVCrFQI7PRrhWecO263610vOrs9tr2Y4xcf8uAdFxbw==}
@@ -3392,6 +3404,13 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.6.0
 
+  '@jtarrio/signals@0.10.3': {}
+
+  '@jtarrio/webrtlsdr@3.0.6':
+    dependencies:
+      '@jtarrio/signals': 0.10.3
+      '@types/w3c-web-usb': 1.0.14
+
   '@malept/cross-spawn-promise@2.0.0':
     dependencies:
       cross-spawn: 7.0.6
@@ -4509,6 +4528,8 @@ snapshots:
   '@types/responselike@1.0.3':
     dependencies:
       '@types/node': 24.19.2
+
+  '@types/w3c-web-usb@1.0.14': {}
 
   '@vitejs/plugin-react@6.1.2(vite@8.3.5(@types/node@24.19.2)(jiti@2.7.0))':
     dependencies:

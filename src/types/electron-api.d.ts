@@ -13,6 +13,13 @@ export interface RadioBridgeApi {
   listPorts(): Promise<PortInfo[]>
   onData(listener: (chunk: string) => void): () => void
   onStatus(listener: (status: 'connected' | 'disconnected') => void): () => void
+  // Cliente rtl_tcp del proceso principal (SDR por red).
+  sdr: {
+    open(options: { host: string; port: number }): Promise<void>
+    command(command: number, value: number): Promise<void>
+    read(bytes: number): Promise<Uint8Array>
+    close(): Promise<void>
+  }
 }
 
 declare global {
