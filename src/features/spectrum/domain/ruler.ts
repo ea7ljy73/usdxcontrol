@@ -1,4 +1,6 @@
-export const RULER_STEPS = [5_000, 2_500, 1_000, 500, 250, 200, 100, 50] as const
+export const RULER_STEPS = [
+  500_000, 200_000, 100_000, 50_000, 25_000, 20_000, 10_000, 5_000, 2_500, 1_000, 500, 250, 200, 100, 50,
+] as const
 
 export type RulerTick = { freqHz: number; ratio: number }
 

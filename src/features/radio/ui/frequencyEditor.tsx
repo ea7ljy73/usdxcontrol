@@ -89,7 +89,7 @@ export function FrequencyEditor({ hz, onPreview, onCommit, onCancel }: Props) {
       tabIndex={0}
       aria-label={`Editor de frecuencia por dígitos, ${formatFrequency(value)} hercios, rueda o flechas arriba y abajo para variar el dígito elegido, Enter para confirmar, Escape para cancelar`}
       onKeyDown={onKeyDown}
-      className="flex items-center justify-center gap-0.5 rounded-lg border border-accent bg-bg px-1 py-1 outline-none focus-visible:ring-2 focus-visible:ring-accent"
+      className="flex items-center justify-center gap-0.5 border border-accent bg-instrument px-1 py-1 outline-none focus-visible:ring-2 focus-visible:ring-accent"
     >
       {digits.map((digit, slot) => (
         <span key={slot} className="flex items-center">
@@ -104,7 +104,7 @@ export function FrequencyEditor({ hz, onPreview, onCommit, onCancel }: Props) {
             className={cn(
               'w-6 cursor-ns-resize rounded-md text-center font-mono text-4xl font-semibold tracking-widest outline-none',
               slot === selected ? 'bg-accent/15 text-accent ring-1 ring-accent' : 'hover:bg-accent/10',
-              digit === 0 && slot !== selected ? 'text-muted/40' : slot === selected ? 'text-accent' : 'text-fg',
+              digit === 0 && slot !== selected ? 'text-dim' : slot === selected ? 'text-accent' : 'text-fg',
             )}
           >
             {digit}

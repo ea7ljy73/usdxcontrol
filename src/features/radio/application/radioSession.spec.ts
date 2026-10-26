@@ -122,6 +122,17 @@ describe('radioSession con simulador CAT', () => {
     expect(link.state().tx).toBe(false)
   })
 
+  it('un RX0 atrasado no anula una pulsación de PTT posterior', async () => {
+    const { session, link } = await start()
+    session.pttOn()
+    await runUntil(500)
+    session.pttOff()
+    session.pttOn()
+    await runUntil(1500)
+    expect(session.getSnapshot().tx).toBe(true)
+    expect(link.state().tx).toBe(true)
+  })
+
   it('notifica a los suscriptores cada cambio', async () => {
     const { session } = await start()
     const snapshots: RadioSnapshot[] = []
@@ -181,6 +192,68 @@ describe('radioSession en modo extendido (firmware ampliado)', () => {
     expect(link.state().volume).toBe(66)
     expect(link.state().agc).toBe(2)
     expect(link.state().nr).toBe(3)
+    session.stop()
+  })
+})
+
+describe('ritmo del sondeo CAT', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  const countPolls = (sent: string[]) => sent.filter((frame) => frame === 'IF;').length
+
+  it('en reposo sondea cada 3 s y, tras una orden, cada 500 ms', async () => {
+    vi.useFakeTimers()
+    const link = createCatSimulatorLink()
+    const sent: string[] = []
+    const send = link.send.bind(link)
+    link.send = (frame: string) => {
+      sent.push(frame)
+      send(frame)
+    }
+    const session = createRadioSession(link)
+    await session.start()
+    // Pasa la ventana de actividad de la conexión.
+    await vi.advanceTimersByTimeAsync(6_000)
+    sent.length = 0
+    await vi.advanceTimersByTimeAsync(9_000)
+    expect(countPolls(sent)).toBe(3)
+
+    sent.length = 0
+    session.requestFrequency(7_100_000)
+    await vi.advanceTimersByTimeAsync(3_000)
+    expect(countPolls(sent)).toBeGreaterThanOrEqual(4)
+    session.stop()
+  })
+})
+
+describe('PTT en la cola CAT', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('el PTT sale antes que lo pendiente y transmitiendo no se sondea', async () => {
+    vi.useFakeTimers()
+    const link = createCatSimulatorLink()
+    const sent: string[] = []
+    const send = link.send.bind(link)
+    link.send = (frame: string) => {
+      sent.push(frame)
+      send(frame)
+    }
+    const session = createRadioSession(link)
+    await session.start()
+    await vi.advanceTimersByTimeAsync(1_000)
+    session.requestFrequency(7_100_000)
+    session.pttOn()
+    sent.length = 0
+    await vi.advanceTimersByTimeAsync(200)
+    expect(sent[0]).toBe('TX;')
+    sent.length = 0
+    await vi.advanceTimersByTimeAsync(5_000)
+    expect(sent.filter((frame) => frame === 'IF;')).toEqual([])
+    session.pttOff()
     session.stop()
   })
 })

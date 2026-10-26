@@ -1,16 +1,4 @@
-export type AudioCapture = { stop(): void }
-
-export type SpectrumSource = {
-  fftSize: number
-  frequencyBinCount: number
-  context: { sampleRate: number }
-  getFloatFrequencyData(array: Float32Array): void
-}
-
-export type AudioAnalyser = {
-  capture: AudioCapture
-  analyser: SpectrumSource
-}
+import type { SpectrumFeed } from '../application/ports'
 
 const AUDIO_CONSTRAINTS: MediaTrackConstraints = {
   echoCancellation: false,
@@ -18,7 +6,11 @@ const AUDIO_CONSTRAINTS: MediaTrackConstraints = {
   autoGainControl: false,
 }
 
-export const startAudioCapture = async (): Promise<AudioAnalyser> => {
+// Varias vistas leen la misma fuente en cada fotograma: se recalcula como mucho
+// una vez por fotograma y el resto de lecturas reciben la misma trama.
+const FRAME_MS = 15
+
+export const startAudioCapture = async (): Promise<SpectrumFeed> => {
   if (!navigator.mediaDevices?.getUserMedia) {
     throw new Error('La captura de audio no está disponible en este navegador')
   }
@@ -29,14 +21,23 @@ export const startAudioCapture = async (): Promise<AudioAnalyser> => {
   analyser.fftSize = 4096
   analyser.smoothingTimeConstant = 0.55
   source.connect(analyser)
+  const bins = new Float32Array(analyser.frequencyBinCount)
+  const binHz = context.sampleRate / analyser.fftSize
+  let readAt = Number.NEGATIVE_INFINITY
+
   return {
-    capture: {
-      stop: () => {
-        source.disconnect()
-        stream.getTracks().forEach((track) => track.stop())
-        void context.close()
-      },
+    read: () => {
+      const now = performance.now()
+      if (now - readAt >= FRAME_MS) {
+        analyser.getFloatFrequencyData(bins)
+        readAt = now
+      }
+      return { kind: 'audio', binHz, bins }
     },
-    analyser,
+    stop: () => {
+      source.disconnect()
+      stream.getTracks().forEach((track) => track.stop())
+      void context.close()
+    },
   }
 }

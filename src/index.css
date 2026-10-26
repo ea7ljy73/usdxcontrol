@@ -3,68 +3,70 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
-  --font-sans: "Inter", system-ui, sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", system-ui, sans-serif;
+  --font-mono: "SF Mono", "JetBrains Mono", ui-monospace, monospace;
 }
 
+/* Paleta tomada de SmartSDR for Mac: barra y botones azul marino, paneles grises,
+   instrumentos sobre negro, panadaptador azul petróleo y slice amarillo. */
 :root {
-  --bg: oklch(0.97 0.005 230);
-  --panel: oklch(1 0 0);
-  --line: oklch(0.88 0.01 230);
-  --fg: oklch(0.2 0.02 230);
-  --muted: oklch(0.5 0.02 230);
-  --accent: oklch(0.6 0.13 195);
-  --accent-fg: oklch(0.98 0 0);
-  --freq-label: oklch(0.45 0.08 240);
-  --tx: oklch(0.55 0.2 25);
+  --bg: oklch(0.2 0.006 260);
+  --panel: oklch(0.46 0.006 260);
+  --panel-deep: oklch(0.3 0.006 260);
+  --line: oklch(0.36 0.01 260);
+  --fg: oklch(0.98 0 0);
+  --muted: oklch(0.8 0.01 260);
+  --dim: oklch(0.57 0.01 260);
+  --navy: oklch(0.32 0.11 262);
+  --navy-hover: oklch(0.4 0.13 262);
+  --navy-line: oklch(0.45 0.09 262);
+  --tile: oklch(0.42 0 0);
+  --tile-hover: oklch(0.5 0 0);
+  --chrome: oklch(0.29 0.1 262);
+  --instrument: oklch(0 0 0);
+  --accent: oklch(0.62 0.13 250);
+  --accent-fg: oklch(0.99 0 0);
+  --pan: oklch(0.29 0.055 238);
+  --pan-scale: oklch(0.2 0.04 240);
+  --freq-label: oklch(0.92 0.01 240);
+  --tx: oklch(0.6 0.22 28);
   --tx-fg: oklch(0.99 0 0);
-  --rx: oklch(0.6 0.14 150);
-  --error: oklch(0.55 0.19 25);
-  --slice: oklch(0.72 0.15 90);
-  --ruler: oklch(0.86 0.14 92);
-  --ruler-fg: oklch(0.2 0.02 90);
-  --ptt: oklch(0.5 0.19 27);
-  --ptt-ok: oklch(0.5 0.15 150);
-}
-
-.dark {
-  --bg: oklch(0.16 0.02 245);
-  --panel: oklch(0.23 0.028 242);
-  --line: oklch(0.34 0.035 240);
-  --fg: oklch(0.95 0.01 230);
-  --muted: oklch(0.68 0.02 235);
-  --accent: oklch(0.76 0.13 215);
-  --accent-fg: oklch(0.16 0.02 245);
-  --freq-label: oklch(0.8 0.1 235);
-  --tx: oklch(0.63 0.22 27);
-  --tx-fg: oklch(0.99 0 0);
-  --rx: oklch(0.82 0.17 150);
+  --rx: oklch(0.85 0.2 140);
+  --meter: oklch(0.62 0.13 250);
   --error: oklch(0.72 0.17 25);
-  --slice: oklch(0.82 0.16 90);
-  --ruler: oklch(0.82 0.14 90);
-  --ruler-fg: oklch(0.18 0.02 90);
-  --ptt: oklch(0.5 0.2 27);
-  --ptt-ok: oklch(0.5 0.15 150);
+  --slice: oklch(0.93 0.18 105);
+  --filter: oklch(0.7 0.12 240 / 0.28);
+  --ant: oklch(0.68 0.13 250);
 }
 
 @theme inline {
   --color-bg: var(--bg);
   --color-panel: var(--panel);
+  --color-panel-deep: var(--panel-deep);
   --color-line: var(--line);
   --color-fg: var(--fg);
   --color-muted: var(--muted);
+  --color-dim: var(--dim);
+  --color-navy: var(--navy);
+  --color-navy-hover: var(--navy-hover);
+  --color-navy-line: var(--navy-line);
+  --color-tile: var(--tile);
+  --color-tile-hover: var(--tile-hover);
+  --color-chrome: var(--chrome);
+  --color-instrument: var(--instrument);
   --color-accent: var(--accent);
   --color-accent-fg: var(--accent-fg);
+  --color-pan: var(--pan);
+  --color-pan-scale: var(--pan-scale);
   --color-freq-label: var(--freq-label);
   --color-tx: var(--tx);
   --color-tx-fg: var(--tx-fg);
   --color-rx: var(--rx);
+  --color-meter: var(--meter);
   --color-error: var(--error);
   --color-slice: var(--slice);
-  --color-ruler: var(--ruler);
-  --color-ruler-fg: var(--ruler-fg);
-  --color-ptt: var(--ptt);
-  --color-ptt-ok: var(--ptt-ok);
+  --color-filter: var(--filter);
+  --color-ant: var(--ant);
 }
 
 @layer base {

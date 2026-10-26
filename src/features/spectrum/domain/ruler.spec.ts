@@ -6,6 +6,8 @@ describe('regla de frecuencia', () => {
     expect(rulerStep(4_800)).toBe(500)
     expect(rulerStep(2_400)).toBe(250)
     expect(rulerStep(1_200)).toBe(100)
+    expect(rulerStep(318_000)).toBe(25_000)
+    expect(rulerStep(1_802_000)).toBe(200_000)
   })
 
   it('genera cruzetas alineadas a múltiplos del paso con ratios en (0,1)', () => {

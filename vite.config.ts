@@ -9,6 +9,8 @@ export default defineConfig({
   resolve: {
     alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
   },
+  // Worker de FT8/FT4 como módulo ES (importa el WASM igual que la app).
+  worker: { format: 'es' },
   test: {
     environment: 'jsdom',
     exclude: [...configDefaults.exclude, 'e2e/**'],

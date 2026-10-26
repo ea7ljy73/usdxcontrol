@@ -1,6 +1,7 @@
 appId: dev.galsan.usdxcontrol
 productName: uSDX Control
-artifactName: usdxcontrol-${version}.${ext}
+# Un nombre por sistema y arquitectura: en una release conviven los de todas las máquinas.
+artifactName: usdxcontrol-${version}-${os}-${arch}.${ext}
 directories:
   output: dist-instalador
 files:
@@ -9,19 +10,35 @@ asar: true
 asarUnpack:
   - node_modules/@serialport/**/prebuilds/**
   - node_modules/serialport/**/prebuilds/**
+# serialport trae binarios N-API precompilados para todos los sistemas: no hace falta
+# compilar nada contra Electron (ni Visual Studio en Windows ni Xcode en macOS).
+npmRebuild: false
+publish:
+  provider: github
+  owner: ea7ljy73
+  repo: usdxcontrol
 linux:
   target:
-    - AppImage
-    - deb
-  category: Utility
+    - target: AppImage
+      arch: [x64]
+    - target: deb
+      arch: [x64]
+  category: HamRadio
   maintainer: jgalera
+  syncDesktopName: true
+  synopsis: Control CAT y FT8 para el uSDX
 win:
   target:
-    - nsis
+    - target: nsis
+      arch: [x64]
 nsis:
   oneClick: true
   createDesktopShortcut: always
 mac:
   target:
-    - dmg
+    - target: dmg
+      arch: [x64, arm64]
   category: public.app-category.utilities
+  # FT8 escucha la tarjeta de sonido de la radio: sin este texto macOS niega el micrófono.
+  extendInfo:
+    NSMicrophoneUsageDescription: uSDX Control escucha el audio de la radio para el espectro y FT8/FT4.

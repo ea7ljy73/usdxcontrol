@@ -10,15 +10,27 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { cn } from '@/lib/cn'
-import { Panadapter, type PanadapterHandle } from '@/features/spectrum/ui/panadapter'
+import type { SpectrumFeed } from '@/features/spectrum/application/ports'
+import { audioRangeBetween } from '@/features/spectrum/domain/audioMapping'
+import { hasSignal } from '@/features/spectrum/domain/signalDetect'
+import { AudioScope } from '@/features/spectrum/ui/audioScope'
+import { Panadapter } from '@/features/spectrum/ui/panadapter'
+import { useSpectrumFeed } from '@/features/spectrum/ui/useSpectrumFeed'
+import { digiDialHz } from '@/features/digital/domain/digiFrequencies'
+import { DIGI_MODES, type DigiMode } from '@/features/digital/domain/slots'
+import { DigiWorkspace } from '@/features/digital/ui/digiWorkspace'
+import { useDigital } from '@/features/digital/ui/useDigital'
 import { BANDS, bandFromFrequency } from '../domain/band'
 import type { SerialPortChoice } from '../application/ports'
 import { MAX_FREQUENCY_HZ, MIN_FREQUENCY_HZ, formatFrequency } from '../domain/frequency'
 import { RADIO_MODES, type RadioMode } from '../domain/mode'
-import { clampNr, MAX_NR, meterPercent, sUnitLabel } from '../domain/receiver'
-import { formatStep, nextStepIndex, TUNING_STEPS } from '../domain/tuning'
+import { audioViewFor, passbandFor } from '../domain/passband'
+import { AGC_LEVELS, clampNr, MAX_NR, meterPercent, sUnitLabel } from '../domain/receiver'
+import { formatStep, nextStepIndex, stepsFrom, TUNING_STEPS } from '../domain/tuning'
 import { useRadioSession } from './useRadioSession'
 import { FrequencyEditor } from './frequencyEditor'
+import { SliceFlag, SMeterScale } from './sliceFlag'
+import { UtcClock } from './utcClock'
 
 const ScanUpIcon = () => (
   <svg aria-hidden="true" width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8">
@@ -33,7 +45,7 @@ const ScanDownIcon = () => (
 )
 
 const PencilIcon = () => (
-  <svg aria-hidden="true" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+  <svg aria-hidden="true" width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
     <path d="M2 14l3-.5L14 4.5 11.5 2 2.5 11z" />
   </svg>
 )
@@ -50,10 +62,12 @@ const SCAN_INTERVAL_MS = 300
 const PREVIEW_DEBOUNCE_MS = 200
 
 export function RadioScreen() {
-  const { session, snapshot, linkKind, portSelection, spectrumSimulated } = useRadioSession()
+  const { session, snapshot, linkKind, portSelection, spectrumSimulated, spectrumFeeds } = useRadioSession()
+  const audio = useSpectrumFeed(spectrumFeeds.audio)
+  const { receiver: digi, receiverState: digiState, operator: digiOperator } = useDigital()
+  const [digiOn, setDigiOn] = useState(false)
   const [stepIndex, setStepIndex] = useState(3)
   const [scanDirection, setScanDirection] = useState<0 | 1 | -1>(0)
-  const panadapterRef = useRef<PanadapterHandle | null>(null)
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
   const [vfoPair, setVfoPair] = useState({ a: 7_074_000, b: 7_074_000 })
@@ -62,7 +76,10 @@ export function RadioScreen() {
   const [selectedPort, setSelectedPort] = useState('')
   const dragRef = useRef<{ y: number; moved: boolean; acc: number } | null>(null)
   const editingRef = useRef<HTMLDivElement | null>(null)
-  const holdTimers = useRef<{ delay: number | null; repeat: number | null }>({ delay: null, repeat: null })
+  const holdTimers = useRef<{ delay: number | null; repeat: number | null }>({
+    delay: null,
+    repeat: null,
+  })
   const suppressClickUntil = useRef(0)
   const nudgeRef = useRef<(sign: 1 | -1) => void>(() => undefined)
   const previewTimer = useRef<number | null>(null)
@@ -72,6 +89,13 @@ export function RadioScreen() {
   const connecting = snapshot.linkStatus === 'connecting'
   const step = TUNING_STEPS[stepIndex]
   const stepRef = useRef(step)
+  const scanWatchRef = useRef<{
+    feed: SpectrumFeed | null
+    passbandHz: [number, number] | null
+  }>({
+    feed: null,
+    passbandHz: null,
+  })
   const band = snapshot.frequency !== null ? bandFromFrequency(snapshot.frequency) : null
   const { label: statusLabel, tone: statusTone } = statusLabels[snapshot.linkStatus]
   const portChoicesAvailable = portSelection !== null && !connected && !connecting
@@ -114,14 +138,12 @@ export function RadioScreen() {
   const hzDraft = () => (draft === '' ? String(snapshot.frequency ?? '') : draft)
   const hzParsed = () => Number.parseInt(hzDraft(), 10)
   const hzInvalid = !Number.isFinite(hzParsed()) || hzParsed() < MIN_FREQUENCY_HZ || hzParsed() > MAX_FREQUENCY_HZ
-  const hzError = hzInvalid
-    ? 'fuera de rango (100 kHz – 60 MHz)'
-    : null
+  const hzError = hzInvalid ? 'fuera de rango (100 kHz – 60 MHz)' : null
 
   const nudge = (sign: 1 | -1) => {
     setScanDirection(0)
     if (snapshot.frequency === null) return
-    session.requestFrequency(snapshot.frequency + sign * step)
+    session.requestFrequency(stepsFrom(snapshot.frequency, sign, step))
   }
   useEffect(() => {
     nudgeRef.current = nudge
@@ -141,7 +163,6 @@ export function RadioScreen() {
     if (event.pointerType === 'mouse' && event.button !== 0) return
     event.currentTarget.setPointerCapture(event.pointerId)
     stopHold()
-    panadapterRef.current?.stopAudio()
     holdTimers.current.delay = window.setTimeout(() => {
       holdTimers.current.delay = null
       suppressClickUntil.current = performance.now() + 500
@@ -161,19 +182,31 @@ export function RadioScreen() {
 
   useEffect(() => stopHold, [])
 
+  // El scan se detiene al aparecer señal en el pasabanda. Solo se arma tras pasar
+  // por un tramo sin señal, para no quedarse en la que ya se estaba escuchando.
+  // Cada tick juzga la trama de audio del paso anterior, que ya ha tenido tiempo de llegar.
   useEffect(() => {
     if (scanDirection === 0 || !connected) return
+    let armed = false
     const id = window.setInterval(() => {
       const current = session.getSnapshot().frequency
       if (current === null) return
-      session.requestFrequency(current + scanDirection * stepRef.current)
+      const { feed, passbandHz } = scanWatchRef.current
+      const signal = hasSignal(feed?.read(), passbandHz)
+      if (armed && signal) {
+        setScanDirection(0)
+        return
+      }
+      if (!signal) armed = true
+      session.requestFrequency(stepsFrom(current, scanDirection, stepRef.current))
     }, SCAN_INTERVAL_MS)
     return () => window.clearInterval(id)
   }, [scanDirection, connected, session])
 
   const toggleScan = (direction: 1 | -1) => {
     if (!connected) return
-    panadapterRef.current?.stopAudio()
+    // Sin audio no hay con qué decidir dónde parar.
+    if (scanDirection !== direction && audio.state === 'off') void audio.start()
     setScanDirection((current) => (current === direction ? 0 : direction))
   }
 
@@ -284,11 +317,12 @@ export function RadioScreen() {
     if (Math.abs(pixels) > 3) drag.moved = true
     if (!drag.moved) return
     drag.y = event.clientY
-    drag.acc += pixels * (step / 24)
+    // 24 px de arrastre por paso, siempre en pasos enteros de la rejilla.
+    drag.acc += pixels / 24
     const whole = Math.trunc(drag.acc)
     if (whole === 0) return
     drag.acc -= whole
-    session.requestFrequency((snapshot.frequency ?? 0) - whole)
+    session.requestFrequency(stepsFrom(snapshot.frequency ?? 0, -whole, step))
   }
 
   const onDialPointerUp = () => {
@@ -298,7 +332,7 @@ export function RadioScreen() {
 
   const onDialWheel = (event: ReactWheelEvent<HTMLDivElement>) => {
     if (snapshot.frequency === null || editing) return
-    session.requestFrequency(snapshot.frequency + (event.deltaY < 0 ? step : -step))
+    session.requestFrequency(stepsFrom(snapshot.frequency, event.deltaY < 0 ? 1 : -1, step))
   }
 
   const switchVfo = (target: 'A' | 'B') => {
@@ -321,20 +355,101 @@ export function RadioScreen() {
     if (value !== '') session.requestMode(value as RadioMode)
   }
 
+  const nudgeLarge = (sign: 1 | -1) => {
+    setScanDirection(0)
+    if (snapshot.frequency === null) return
+    session.requestFrequency(stepsFrom(snapshot.frequency, sign * 10, step))
+  }
+
+  const closeDigi = () => {
+    digiOperator.haltTx()
+    digi.stop()
+    setDigiOn(false)
+  }
+  // Sin radio no se transmite ni se escucha (la pantalla FT8 se oculta hasta reconectar).
+  const digiVisible = digiOn && connected
+  useEffect(() => {
+    if (connected) return
+    digiOperator.haltTx()
+    digi.stop()
+  }, [connected, digi, digiOperator])
+
+  // Cerrar la ventana nunca puede dejar la radio en transmisión.
+  useEffect(() => {
+    const halt = () => digiOperator.haltTx()
+    window.addEventListener('pagehide', halt)
+    return () => window.removeEventListener('pagehide', halt)
+  }, [digiOperator])
+
+  // FT8/FT4 va siempre en USB y en la frecuencia de la banda; pulsar el modo activo cierra la pantalla.
+  const tuneDigi = (hz: number) => {
+    setScanDirection(0)
+    session.requestFrequency(hz)
+    if (snapshot.mode !== 'USB') session.requestMode('USB')
+  }
+  const selectDigiMode = (mode: DigiMode) => {
+    if (mode !== digiState.mode) digiOperator.haltTx()
+    digi.setMode(mode)
+    const dial = band ? digiDialHz(mode, band.id) : null
+    if (dial !== null) tuneDigi(dial)
+    else if (snapshot.mode !== 'USB') session.requestMode('USB')
+    if (digi.getState().status === 'off') void digi.start()
+  }
+  const toggleDigi = (mode: DigiMode) => {
+    if (digiVisible && digiState.mode === mode) {
+      closeDigi()
+      return
+    }
+    setDigiOn(true)
+    selectDigiMode(mode)
+  }
+
+  const passbandAudioHz =
+    connected && snapshot.mode
+      ? audioRangeBetween(passbandFor(snapshot.mode).lowHz, passbandFor(snapshot.mode).highHz, audioViewFor(snapshot.mode))
+      : null
+  useEffect(() => {
+    scanWatchRef.current = { feed: audio.feed, passbandHz: passbandAudioHz }
+  })
+  const frequencyText = snapshot.frequency === null ? '---' : formatFrequency(snapshot.frequency)
+  const extendedReady = connected && snapshot.extended
+
   return (
-    <div className="flex min-h-svh flex-col bg-bg">
-      <header className="flex flex-wrap items-center justify-between gap-2 border-b border-line bg-panel/70 px-3 py-1.5">
-        <div className="flex items-baseline gap-3">
-          <h1 className="text-sm font-semibold tracking-wider uppercase">uSDX Control</h1>
-          <span data-testid="header-frequency" className="hidden font-mono text-[11px] text-muted md:block">
-            {connected && snapshot.frequency !== null
-              ? `${activeVfo}: ${formatFrequency(snapshot.frequency)}${snapshot.mode ? ` (${snapshot.mode})` : ''}`
-              : 'CAT · uSDX'}
+    <div className="flex min-h-svh flex-col bg-bg lg:h-svh">
+      <header className="flex flex-wrap items-center gap-x-4 gap-y-1.5 bg-chrome px-3 py-1.5">
+        <h1 className="text-sm font-semibold">uSDX Control</h1>
+
+        <label className="flex items-center gap-2" title="Volumen de la radio">
+          <svg aria-hidden width="20" height="16" viewBox="0 0 18 14" fill="currentColor" className="text-fg">
+            <path d="M1 5h3l4-4v12L4 9H1z" />
+            <path d="M11 4a4 4 0 0 1 0 6M13 2a7 7 0 0 1 0 10" fill="none" stroke="currentColor" strokeWidth="1.5" />
+          </svg>
+          <input
+            type="range"
+            data-testid="volume"
+            aria-label="Volumen"
+            min={0}
+            max={99}
+            step={1}
+            value={snapshot.volume ?? 40}
+            disabled={!extendedReady}
+            onChange={(event) => session.setVolume(Number(event.target.value))}
+            className="w-24 accent-(--color-accent) disabled:opacity-40 sm:w-28"
+          />
+          <span data-testid="volume-value" className="w-5 text-xs text-fg tabular-nums">
+            {snapshot.volume ?? '--'}
           </span>
-        </div>
-        <div className="flex items-center gap-2">
+        </label>
+
+        <span data-testid="header-frequency" className="hidden flex-1 text-center text-sm text-fg tabular-nums md:block">
+          {connected && snapshot.frequency !== null
+            ? `${activeVfo}: ${formatFrequency(snapshot.frequency)}${snapshot.mode ? ` (${snapshot.mode})` : ''}${snapshot.tx ? ' [TX]' : ''}`
+            : 'CAT · uSDX'}
+        </span>
+
+        <div className="ml-auto flex flex-wrap items-center gap-x-3 gap-y-1.5 md:ml-0">
           {snapshot.lastError && (
-            <span className="hidden max-w-48 truncate text-xs text-tx sm:block" title={snapshot.lastError}>
+            <span className="hidden max-w-48 truncate text-xs text-error sm:block" title={snapshot.lastError}>
               {snapshot.lastError}
             </span>
           )}
@@ -345,7 +460,7 @@ export function RadioScreen() {
               disabled={ports.length === 0}
               value={selectedPort}
               onChange={(event) => setSelectedPort(event.target.value)}
-              className="h-9 rounded-lg border border-line bg-panel px-2 py-0 text-xs text-fg outline-none focus-visible:ring-2 focus-visible:ring-accent"
+              className="h-7 w-44 truncate rounded-md border border-navy-line bg-navy px-2 py-0 text-xs text-fg outline-none focus-visible:ring-2 focus-visible:ring-slice"
             >
               {ports.length === 0 ? (
                 <option value="">Sin puertos serie</option>
@@ -363,7 +478,7 @@ export function RadioScreen() {
             {statusLabel}
           </Badge>
           <Button
-            variant={connected ? 'default' : 'primary'}
+            variant="pill"
             disabled={connecting}
             onClick={() => {
               if (connected || connecting) {
@@ -377,382 +492,372 @@ export function RadioScreen() {
           >
             {connecting ? 'Conectando' : connected ? 'Desconectar' : 'Conectar'}
           </Button>
+          <UtcClock />
         </div>
       </header>
 
-      <main className="flex w-full flex-1 flex-col gap-2 p-2">
-        <Panadapter
-          disabled={!connected}
-          simulated={spectrumSimulated}
-          startCapture={
-            spectrumSimulated
-              ? () => import('@/features/spectrum/infrastructure/spectrumSimulator').then((m) => m.createSimulatedAudioCapture())
-              : undefined
-          }
-          vfoHz={snapshot.frequency}
-          bandLabel={band?.label ?? null}
-          sliceLabel={snapshot.frequency !== null ? formatFrequency(snapshot.frequency) : null}
-          sliceTag={activeVfo}
-          sliceMode={snapshot.mode}
-          ref={panadapterRef}
-          tx={snapshot.tx}
-          onTuneOffset={(offsetHz) => {
-            setScanDirection(0)
-            if (snapshot.frequency !== null) session.requestFrequency(snapshot.frequency + offsetHz)
-          }}
-          onWheelTune={(sign) => nudge(sign)}
-          onDragTune={(deltaHz) => {
-            setScanDirection(0)
-            if (snapshot.frequency !== null) session.requestFrequency(snapshot.frequency + deltaHz)
-          }}
-        />
+      <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
+        <main className="flex min-h-0 min-w-0 flex-1 flex-col">
+          {digiVisible ? (
+            <DigiWorkspace dialHz={snapshot.frequency} onMode={selectDigiMode} onTune={tuneDigi} />
+          ) : (
+            <Panadapter
+              disabled={!connected}
+              simulated={spectrumSimulated}
+              feed={audio.feed}
+              feedState={audio.state}
+              onToggleAudio={() => (audio.state === 'on' ? audio.stop() : void audio.start())}
+              vfoHz={snapshot.frequency}
+              band={band ? { fromHz: band.fromHz, toHz: band.toHz } : null}
+              passband={connected && snapshot.mode ? passbandFor(snapshot.mode) : null}
+              audioView={connected && snapshot.mode ? audioViewFor(snapshot.mode) : null}
+              sliceFlag={
+                connected && (
+                  <SliceFlag
+                    frequencyLabel={frequencyText}
+                    tag={activeVfo}
+                    mode={snapshot.mode}
+                    tx={snapshot.tx}
+                    meter={snapshot.meter}
+                    nr={snapshot.nr}
+                    agc={snapshot.agc}
+                    bandLabel={band?.label ?? null}
+                  />
+                )
+              }
+              tuneStepHz={step}
+              onTuneOffset={(offsetHz) => {
+                setScanDirection(0)
+                if (snapshot.frequency !== null) session.requestFrequency(snapshot.frequency + offsetHz)
+              }}
+              onWheelTune={(sign) => nudge(sign)}
+              onDragTune={(steps) => {
+                setScanDirection(0)
+                if (snapshot.frequency !== null) session.requestFrequency(stepsFrom(snapshot.frequency, steps, step))
+              }}
+            />
+          )}
 
-        <section aria-label="Sintonía y control" className="rounded-md border border-line bg-panel/60 p-3">
-          <div className="flex flex-col items-center gap-3">
-            <div
-              className="flex w-full items-center gap-1 overflow-x-auto border-b border-line pb-2 outline-none focus-visible:ring-2 focus-visible:ring-accent"
-              role="group"
-              aria-label="Bandas"
-              tabIndex={0}
-            >
-              <span className="mr-1 shrink-0 text-[10px] font-semibold tracking-wider text-muted uppercase">Band</span>
+          <section aria-label={`Slice ${activeVfo}`} className="flex flex-col gap-1 bg-panel p-1.5">
+            <div className="flex items-stretch gap-1">
+              <Button
+                className="w-12 text-lg sm:w-16"
+                aria-label="Retroceder diez pasos"
+                disabled={!connected}
+                onClick={() => nudgeLarge(-1)}
+              >
+                &lt;&lt;
+              </Button>
+              <Button
+                className="w-12 text-lg sm:w-16"
+                aria-label="Bajar frecuencia"
+                disabled={!connected}
+                onPointerDown={startHold(-1)}
+                onPointerUp={endHold}
+                onPointerCancel={endHold}
+                onLostPointerCapture={endHold}
+                onClick={holdClick(-1)}
+              >
+                &lt;
+              </Button>
+              <div className="flex min-w-0 flex-1 items-center justify-center gap-3 bg-instrument px-2 py-1.5">
+                {editing ? (
+                  <div
+                    ref={editingRef}
+                    className="flex flex-col items-center gap-1.5"
+                    onBlurCapture={(event) => {
+                      if (editingRef.current === null) return
+                      if (editingRef.current.contains(event.relatedTarget as Node | null)) return
+                      setEditing(false)
+                    }}
+                  >
+                    <FrequencyEditor
+                      hz={snapshot.frequency ?? 0}
+                      onPreview={(hz) => {
+                        clearPreviewTimer()
+                        previewTimer.current = window.setTimeout(() => session.requestFrequency(hz), PREVIEW_DEBOUNCE_MS)
+                      }}
+                      onCommit={(hz) => {
+                        clearPreviewTimer()
+                        editStartHz.current = null
+                        setEditing(false)
+                        session.requestFrequency(hz)
+                      }}
+                      onCancel={() => {
+                        clearPreviewTimer()
+                        const original = editStartHz.current
+                        editStartHz.current = null
+                        setEditing(false)
+                        if (original !== null) session.requestFrequency(original)
+                      }}
+                    />
+                    <label
+                      className={cn(
+                        'flex w-max items-center gap-2 border px-2 py-1',
+                        hzError ? 'border-error' : 'border-white/20',
+                      )}
+                    >
+                      <span className="text-xs font-medium text-muted">Hz</span>
+                      <input
+                        data-testid="freq-hz"
+                        inputMode="numeric"
+                        aria-label="Frecuencia en hercios"
+                        aria-invalid={hzError !== null}
+                        className={cn(
+                          'w-24 bg-transparent text-center text-sm tabular-nums outline-none',
+                          hzError ? 'text-error' : 'text-fg',
+                        )}
+                        value={draft === '' ? String(snapshot.frequency ?? '') : draft}
+                        onChange={(event) => setDraft(event.target.value.replace(/[^0-9]/g, '').slice(0, 9))}
+                        onBlur={() => {
+                          const hz = Number.parseInt(draft, 10)
+                          if (draft !== '' && Number.isFinite(hz) && !hzError) {
+                            setEditing(false)
+                            session.requestFrequency(hz)
+                          } else {
+                            setEditing(false)
+                          }
+                        }}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter' && !hzError) {
+                            session.requestFrequency(hzParsed())
+                            setEditing(false)
+                          }
+                          if (event.key === 'Escape') setEditing(false)
+                        }}
+                      />
+                      {hzError ? (
+                        <span data-testid="freq-hz-error" className="text-xs text-error">
+                          {hzError}
+                        </span>
+                      ) : null}
+                    </label>
+                  </div>
+                ) : (
+                  <>
+                    <div
+                      data-testid="vfo-frequency"
+                      role="button"
+                      tabIndex={connected ? 0 : -1}
+                      aria-label={`Frecuencia VFO ${
+                        snapshot.frequency === null ? 'no conectado' : formatFrequency(snapshot.frequency)
+                      }, arrastrar o cursores para sintonizar`}
+                      onPointerDown={onDialPointerDown}
+                      onPointerMove={onDialPointerMove}
+                      onPointerUp={onDialPointerUp}
+                      onWheel={onDialWheel}
+                      onKeyDown={(event) => {
+                        if (event.key === 'ArrowUp' || event.key === 'ArrowRight') {
+                          event.preventDefault()
+                          nudge(1)
+                        }
+                        if (event.key === 'ArrowDown' || event.key === 'ArrowLeft') {
+                          event.preventDefault()
+                          nudge(-1)
+                        }
+                        if (event.key === 'Enter') startEditing()
+                        if (event.key === 'Escape') event.currentTarget.blur()
+                      }}
+                      className={cn(
+                        'cursor-ns-resize px-1 text-4xl font-light tracking-wide tabular-nums outline-none select-none focus:ring-2 focus:ring-slice sm:text-5xl',
+                        connected ? 'text-fg' : 'text-muted',
+                      )}
+                    >
+                      {frequencyText}
+                    </div>
+                    <span aria-hidden className="relative hidden size-9 shrink-0 rounded-full bg-fg sm:block">
+                      <span className="absolute top-1.5 left-1.5 size-2.5 rounded-full bg-instrument" />
+                    </span>
+                  </>
+                )}
+              </div>
+              <Button
+                className="w-12 text-lg sm:w-16"
+                aria-label="Subir frecuencia"
+                disabled={!connected}
+                onPointerDown={startHold(1)}
+                onPointerUp={endHold}
+                onPointerCancel={endHold}
+                onLostPointerCapture={endHold}
+                onClick={holdClick(1)}
+              >
+                &gt;
+              </Button>
+              <Button
+                className="w-12 text-lg sm:w-16"
+                aria-label="Avanzar diez pasos"
+                disabled={!connected}
+                onClick={() => nudgeLarge(1)}
+              >
+                &gt;&gt;
+              </Button>
+            </div>
+
+            <div className="grid grid-cols-3 gap-1 sm:grid-cols-6" role="group" aria-label="Paso y búsqueda">
+              <Button
+                data-testid="tuning-step"
+                aria-label={`Paso de sintonía ${formatStep(step)}, clic para cambiar`}
+                title="Paso de sintonía"
+                onClick={() => setStepIndex(nextStepIndex(stepIndex))}
+              >
+                {formatStep(step)}
+              </Button>
+              <Button
+                variant={scanDirection === -1 ? 'navy' : 'tile'}
+                aria-label="Scan hacia abajo"
+                aria-pressed={scanDirection === -1}
+                disabled={!connected}
+                className="gap-1.5"
+                onClick={() => toggleScan(-1)}
+              >
+                <ScanDownIcon />
+                Scan
+              </Button>
+              <Button
+                variant={scanDirection === 1 ? 'navy' : 'tile'}
+                aria-label="Scan hacia arriba"
+                aria-pressed={scanDirection === 1}
+                disabled={!connected}
+                className="gap-1.5"
+                onClick={() => toggleScan(1)}
+              >
+                <ScanUpIcon />
+                Scan
+              </Button>
+              <Button aria-label="Editar frecuencia" title="Editar frecuencia" disabled={!connected} onClick={startEditing}>
+                <PencilIcon />
+              </Button>
+              <Button variant="tile" aria-label="RIT 0, borrar RIT" disabled={!connected} onClick={() => session.clearRit()}>
+                RIT 0
+              </Button>
+              <Button
+                data-testid="vfo-swap"
+                aria-label="A ⇄ B, intercambiar VFO A y B"
+                disabled={!connected}
+                onClick={() => switchVfo(activeVfo === 'A' ? 'B' : 'A')}
+              >
+                A ⇄ B
+              </Button>
+            </div>
+          </section>
+        </main>
+
+        <aside aria-label="Controles de radio" className="flex flex-col gap-px bg-panel-deep lg:w-80 lg:overflow-y-auto">
+          <section aria-labelledby="rc-meter" className="bg-panel">
+            <h2 id="rc-meter" className="bg-navy px-3 py-1 text-center text-sm font-medium">
+              RX
+            </h2>
+            <div className="m-2 bg-instrument px-3 pt-2 pb-1">
+              <div className="flex items-baseline justify-between">
+                <span className="text-sm text-fg">S-Meter</span>
+                <span className="text-sm text-fg tabular-nums">
+                  {snapshot.meter !== null ? `${sUnitLabel(snapshot.meter)}${snapshot.tx ? ' · TX' : ''}` : '--'}
+                </span>
+              </div>
+              {snapshot.meter !== null ? (
+                <div
+                  data-testid="s-meter"
+                  role="meter"
+                  aria-label={`S-métrico ${sUnitLabel(snapshot.meter)}`}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={meterPercent(snapshot.meter)}
+                  className="mt-1.5 h-2.5 bg-white/10"
+                >
+                  <div
+                    className={cn('h-full transition-[width] duration-150', snapshot.meter > 204 ? 'bg-tx' : 'bg-rx')}
+                    style={{ width: `${meterPercent(snapshot.meter)}%` }}
+                  />
+                </div>
+              ) : (
+                <div aria-hidden className="mt-1.5 h-2.5 bg-white/10" />
+              )}
+              <div className="mt-1.5">
+                <SMeterScale size="lg" />
+              </div>
+            </div>
+            <div className="mx-2 mb-2 bg-instrument px-3 pt-2 pb-1">
+              <div className="mb-1.5 flex items-baseline justify-between">
+                <span className="text-sm text-fg">Audio</span>
+                <span className="text-xs text-muted">{spectrumSimulated ? 'simulado' : 'tarjeta de sonido'}</span>
+              </div>
+              <AudioScope feed={audio.feed} passbandAudioHz={passbandAudioHz} />
+            </div>
+            <div className="flex flex-col gap-1.5 px-2 pb-2" role="group" aria-label="Ajustes de recepción">
+              <div className="flex items-center gap-2">
+                <label className="flex flex-1 items-center gap-2 text-sm text-fg">
+                  AGC
+                  <select
+                    data-testid="agc"
+                    aria-label="AGC"
+                    value={snapshot.agc ?? 1}
+                    disabled={!extendedReady}
+                    onChange={(event) => session.setAgc(Number(event.target.value))}
+                    className="h-9 min-w-0 flex-1 bg-navy px-2 text-sm text-fg outline-none focus-visible:ring-2 focus-visible:ring-slice disabled:opacity-40"
+                  >
+                    {AGC_LEVELS.map((name, level) => (
+                      <option key={name} value={level}>
+                        {name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <Button
+                  data-testid="nr"
+                  variant={(snapshot.nr ?? 0) > 0 ? 'navy' : 'tile'}
+                  aria-label={`NR ${(snapshot.nr ?? 0).toString()} · reducción de ruido, clic para subir`}
+                  disabled={!extendedReady}
+                  className="h-9 w-24"
+                  title="Reducción de ruido"
+                  onClick={() => {
+                    const current = snapshot.nr ?? 0
+                    session.setNr(current >= MAX_NR ? 0 : clampNr(current + 1))
+                  }}
+                >
+                  NR {(snapshot.nr ?? 0).toString()}
+                </Button>
+              </div>
+              {!snapshot.extended && <p className="text-xs text-fg">Volumen, AGC y NR requieren firmware ampliado</p>}
+            </div>
+          </section>
+
+          <section aria-labelledby="rc-band" className="bg-panel">
+            <h2 id="rc-band" className="bg-navy px-3 py-1 text-center text-sm font-medium">
+              Band
+            </h2>
+            <div className="grid grid-cols-5 gap-px p-2" role="group" aria-label="Bandas">
               {BANDS.map((entry) => {
                 const active = band?.id === entry.id
                 return (
-                  <button
+                  <Button
                     key={entry.id}
-                    type="button"
+                    variant={active ? 'navy' : 'tile'}
                     data-testid={`band-${entry.id}`}
                     aria-label={`Banda ${entry.label}, ${formatFrequency(entry.defaultFreqHz)}, clic para saltar`}
                     aria-pressed={active}
                     disabled={!connected}
+                    className="h-9 px-1"
                     onClick={() => session.requestFrequency(entry.defaultFreqHz)}
-                    className={cn(
-                      'shrink-0 rounded-sm px-2 py-1 font-mono text-[11px] font-semibold uppercase outline-none transition-colors duration-150',
-                      'focus-visible:ring-2 focus-visible:ring-accent disabled:pointer-events-none disabled:opacity-40',
-                      active ? 'bg-accent text-accent-fg' : 'text-muted hover:bg-line hover:text-fg',
-                    )}
                   >
                     {entry.label}
-                  </button>
+                  </Button>
                 )
               })}
             </div>
+          </section>
 
-            <div className="relative grid w-full grid-cols-1 gap-3 md:grid-cols-2" role="group" aria-label="VFO">
-              {(['A', 'B'] as const).map((tag) => {
-                const stored = tag === 'A' ? vfoPair.a : vfoPair.b
-                const shown = activeVfo === tag ? (snapshot.frequency ?? stored) : stored
-                const isActive = activeVfo === tag
-                return (
-                  <div
-                    key={tag}
-                    aria-label={`Receptor VFO ${tag}`}
-                    className={cn(
-                      'relative flex flex-col gap-2 overflow-hidden rounded-md border bg-panel p-3 transition-colors duration-150',
-                      isActive ? 'border-slice/60' : 'border-line',
-                    )}
-                  >
-                    {isActive ? (
-                      <span aria-hidden className="absolute inset-y-0 left-0 w-1" style={{ backgroundColor: 'var(--color-slice)' }} />
-                    ) : null}
-                    <div className="flex items-center justify-between gap-2 pl-1">
-                      <div className="flex items-center gap-1.5">
-                        <span
-                          className={cn(
-                            'rounded-sm px-1.5 py-0.5 font-mono text-[11px] font-semibold uppercase',
-                            isActive ? 'bg-accent text-accent-fg' : 'bg-line/60 text-muted',
-                          )}
-                        >
-                          {tag}
-                        </span>
-                        <span className="font-mono text-[11px] tracking-wider text-muted uppercase">
-                          {tag === activeVfo ? snapshot.mode ?? '' : ''}
-                        </span>
-                      </div>
-                      <span className="font-mono text-[10px] tracking-wider text-muted uppercase">
-                        {tag === activeVfo ? band?.label ?? '' : ''}
-                      </span>
-                    </div>
-                    {isActive && snapshot.meter !== null ? (
-                      <div className="flex items-center gap-2">
-                        <div
-                          data-testid="s-meter"
-                          role="meter"
-                          aria-label={`S-métrico ${sUnitLabel(snapshot.meter)}`}
-                          aria-valuemin={0}
-                          aria-valuemax={100}
-                          aria-valuenow={meterPercent(snapshot.meter)}
-                          className="h-2 min-w-0 flex-1 overflow-hidden rounded-sm border border-line bg-black/50"
-                        >
-                          <div
-                            className={cn('h-full transition-[width] duration-150', snapshot.meter > 204 ? 'bg-tx' : 'bg-rx')}
-                            style={{ width: `${meterPercent(snapshot.meter)}%` }}
-                          />
-                        </div>
-                        <span className="w-16 shrink-0 text-right font-mono text-[10px] text-muted">
-                          {sUnitLabel(snapshot.meter)}{snapshot.tx ? ' · TX' : ''}
-                        </span>
-                      </div>
-                    ) : null}
-                    {editing && isActive ? (
-                      <div
-                        ref={editingRef}
-                        className="flex flex-col items-center gap-1.5"
-                        onBlurCapture={(event) => {
-                          if (editingRef.current === null) return
-                          if (editingRef.current.contains(event.relatedTarget as Node | null)) return
-                          setEditing(false)
-                        }}
-                      >
-                        <FrequencyEditor
-                          hz={snapshot.frequency ?? 0}
-                          onPreview={(hz) => {
-                            clearPreviewTimer()
-                            previewTimer.current = window.setTimeout(() => session.requestFrequency(hz), PREVIEW_DEBOUNCE_MS)
-                          }}
-                          onCommit={(hz) => {
-                            clearPreviewTimer()
-                            editStartHz.current = null
-                            setEditing(false)
-                            session.requestFrequency(hz)
-                          }}
-                          onCancel={() => {
-                            clearPreviewTimer()
-                            const original = editStartHz.current
-                            editStartHz.current = null
-                            setEditing(false)
-                            if (original !== null) session.requestFrequency(original)
-                          }}
-                        />
-                        <label
-                          className={cn(
-                            'flex w-max items-center gap-2 rounded-lg border px-2 py-1',
-                            hzError ? 'border-error' : 'border-line',
-                          )}
-                        >
-                          <span className="text-[10px] font-medium tracking-wider text-muted uppercase">Hercios</span>
-                          <input
-                            data-testid="freq-hz"
-                            inputMode="numeric"
-                            aria-label="Frecuencia en hercios"
-                            aria-invalid={hzError !== null}
-                            className={cn(
-                              'w-24 bg-transparent text-center font-mono text-sm outline-none',
-                              hzError ? 'text-error' : 'text-fg',
-                            )}
-                            value={draft === '' ? String(snapshot.frequency ?? '') : draft}
-                            onChange={(event) => setDraft(event.target.value.replace(/[^0-9]/g, '').slice(0, 9))}
-                            onBlur={() => {
-                              const hz = Number.parseInt(draft, 10)
-                              if (draft !== '' && Number.isFinite(hz) && !hzError) {
-                                setEditing(false)
-                                session.requestFrequency(hz)
-                              } else {
-                                setEditing(false)
-                              }
-                            }}
-                            onKeyDown={(event) => {
-                              if (event.key === 'Enter' && !hzError) {
-                                session.requestFrequency(hzParsed())
-                                setEditing(false)
-                              }
-                              if (event.key === 'Escape') setEditing(false)
-                            }}
-                          />
-                          {hzError ? (
-                            <span data-testid="freq-hz-error" className="text-[10px] text-error">
-                              {hzError}
-                            </span>
-                          ) : null}
-                        </label>
-                      </div>
-                    ) : isActive ? (
-                      <div
-                        data-testid="vfo-frequency"
-                        role="button"
-                        tabIndex={connected ? 0 : -1}
-                        aria-label={`Frecuencia VFO ${
-                          snapshot.frequency === null ? 'no conectado' : formatFrequency(snapshot.frequency)
-                        }, arrastrar para sintonizar`}
-                        onPointerDown={onDialPointerDown}
-                        onPointerMove={onDialPointerMove}
-                        onPointerUp={onDialPointerUp}
-                        onWheel={onDialWheel}
-                        onKeyDown={(event) => {
-                          if (event.key === 'ArrowUp') { event.preventDefault(); nudge(1) }
-                          if (event.key === 'ArrowDown') { event.preventDefault(); nudge(-1) }
-                          if (event.key === 'Enter') startEditing()
-                        }}
-                        className={cn(
-                          'cursor-ns-resize select-none py-1 text-center font-mono text-4xl font-semibold tracking-wide outline-none focus-visible:ring-2 focus-visible:ring-accent',
-                          connected ? 'text-fg' : 'text-muted',
-                        )}
-                      >
-                        {snapshot.frequency === null ? '---' : formatFrequency(snapshot.frequency)}
-                      </div>
-                    ) : (
-                      <button
-                        type="button"
-                        data-testid={`vfo-${tag.toLowerCase()}`}
-                        aria-label={`VFO ${tag} ${formatFrequency(shown)}, clic para activar`}
-                        disabled={!connected}
-                        onClick={() => switchVfo(tag)}
-                        className="select-none rounded-lg py-2 text-center font-mono text-3xl font-medium tracking-wide text-muted outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-accent hover:text-fg disabled:pointer-events-none disabled:opacity-40"
-                      >
-                        {formatFrequency(shown)}
-                      </button>
-                    )}
-                    {isActive ? (
-                      <div className="flex items-center justify-center gap-1" role="group" aria-label="Paso de sintonía">
-                        <Button
-                          variant="ghost"
-                          aria-label="Bajar frecuencia"
-                          disabled={!connected}
-                          onPointerDown={startHold(-1)}
-                          onPointerUp={endHold}
-                          onPointerCancel={endHold}
-                          onLostPointerCapture={endHold}
-                          onClick={holdClick(-1)}
-                        >
-                          −
-                        </Button>
-                        <button
-                          type="button"
-                          data-testid="tuning-step"
-                          aria-label={`Paso de sintonía ${formatStep(step)}, clic para cambiar`}
-                          onClick={() => setStepIndex(nextStepIndex(stepIndex))}
-                          className="rounded-sm border border-line px-3 py-2 font-mono text-xs text-fg outline-none transition-colors duration-150 hover:border-accent focus-visible:ring-2 focus-visible:ring-accent"
-                        >
-                          {formatStep(step)}
-                        </button>
-                        <Button
-                          variant="ghost"
-                          aria-label="Subir frecuencia"
-                          disabled={!connected}
-                          onPointerDown={startHold(1)}
-                          onPointerUp={endHold}
-                          onPointerCancel={endHold}
-                          onLostPointerCapture={endHold}
-                          onClick={holdClick(1)}
-                        >
-                          +
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          aria-label="Scan hacia arriba"
-                          aria-pressed={scanDirection === 1}
-                          disabled={!connected}
-                          className={cn('gap-1 px-2 text-[11px] font-semibold uppercase', scanDirection === 1 && 'bg-accent text-accent-fg')}
-                          onClick={() => toggleScan(1)}
-                        >
-                          <ScanUpIcon />
-                          Scan
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          aria-label="Scan hacia abajo"
-                          aria-pressed={scanDirection === -1}
-                          disabled={!connected}
-                          className={cn('gap-1 px-2 text-[11px] font-semibold uppercase', scanDirection === -1 && 'bg-accent text-accent-fg')}
-                          onClick={() => toggleScan(-1)}
-                        >
-                          <ScanDownIcon />
-                          Scan
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          aria-label="Editar frecuencia"
-                          disabled={!connected}
-                          className="px-2"
-                          onClick={startEditing}
-                        >
-                          <PencilIcon />
-                        </Button>
-                      </div>
-                    ) : null}
-                  </div>
-                )
-              })}
-              <Button
-                variant="ghost"
-                disabled={!connected}
-                className="mx-auto md:absolute md:top-1/2 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2"
-                data-testid="vfo-swap"
-                aria-label="Intercambiar VFO A y B"
-                onClick={() => switchVfo(activeVfo === 'A' ? 'B' : 'A')}
-              >
-                ⇄
-              </Button>
-            </div>
-
-            <div
-              className="flex w-full flex-wrap items-center justify-center gap-x-5 gap-y-2 rounded-sm border border-line bg-bg/50 px-3 py-2"
-              role="group"
-              aria-label="Ajustes de audio y recepción"
-            >
-              <label className="flex items-center gap-2 text-[10px] font-medium tracking-wider text-muted uppercase">
-                Volumen
-                <input
-                  type="range"
-                  data-testid="volume"
-                  aria-label="Volumen"
-                  min={0}
-                  max={99}
-                  step={1}
-                  value={snapshot.volume ?? 40}
-                  disabled={!connected || !snapshot.extended}
-                  onChange={(event) => session.setVolume(Number(event.target.value))}
-                  className="w-32 accent-(--color-accent) disabled:opacity-40"
-                />
-                <span data-testid="volume-value" className="w-5 font-mono text-[11px] text-fg">
-                  {snapshot.volume ?? '--'}
-                </span>
-              </label>
-              <label className="flex items-center gap-2 text-[10px] font-medium tracking-wider text-muted uppercase">
-                AGC
-                <select
-                  data-testid="agc"
-                  aria-label="AGC"
-                  value={snapshot.agc ?? 1}
-                  disabled={!connected || !snapshot.extended}
-                  onChange={(event) => session.setAgc(Number(event.target.value))}
-                  className="rounded-lg border border-line bg-panel px-2 py-1 text-xs text-fg outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-40"
-                >
-                  {(['OFF', 'AUTO', 'FAST', 'SLOW'] as const).map((name) => (
-                    <option key={name} value={name === 'OFF' ? 0 : name === 'AUTO' ? 1 : name === 'FAST' ? 2 : 3}>
-                      {name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <button
-                type="button"
-                data-testid="nr"
-                aria-label={`NR ${(snapshot.nr ?? 0).toString()} · reducción de ruido, clic para subir`}
-                disabled={!connected || !snapshot.extended}
-                onClick={() => {
-                  const current = snapshot.nr ?? 0
-                  session.setNr(current >= MAX_NR ? 0 : clampNr(current + 1))
-                }}
-                className={cn(
-                  'rounded-lg border px-2.5 py-1.5 text-xs font-medium outline-none transition-colors duration-150',
-                  'focus-visible:ring-2 focus-visible:ring-accent disabled:pointer-events-none disabled:opacity-40',
-                  (snapshot.nr ?? 0) > 0 ? 'border-accent text-accent' : 'border-line text-muted hover:text-fg',
-                )}
-              >
-                NR {(snapshot.nr ?? 0).toString()}
-              </button>
-              {!snapshot.extended && <span className="text-[10px] text-muted">requiere firmware ampliado · docs/cat-extensiones-peticion.md</span>}
-            </div>
-
-            <div className="flex w-full flex-wrap items-center justify-center gap-3 border-t border-line pt-3">
+          <section aria-labelledby="rc-mode" className="bg-panel">
+            <h2 id="rc-mode" className="bg-navy px-3 py-1 text-center text-sm font-medium">
+              Mode
+            </h2>
+            <div className="flex gap-1.5 p-2">
               <ToggleGroup
                 type="single"
                 value={snapshot.mode ?? ''}
                 onValueChange={setMode}
                 disabled={!connected}
                 aria-label="Modo"
+                className="flex-[5] grid-cols-5"
               >
                 {RADIO_MODES.map((mode) => (
                   <ToggleGroupItem key={mode} value={mode} aria-label={`Modo ${mode}`}>
@@ -760,34 +865,98 @@ export function RadioScreen() {
                   </ToggleGroupItem>
                 ))}
               </ToggleGroup>
+              <div className="grid flex-[2] grid-cols-2 gap-px" role="group" aria-label="Modos digitales">
+                {DIGI_MODES.map((mode) => {
+                  const active = digiVisible && digiState.mode === mode
+                  return (
+                    <Button
+                      key={mode}
+                      data-testid={`digi-${mode.toLowerCase()}`}
+                      variant={active ? 'navy' : 'tile'}
+                      aria-pressed={active}
+                      disabled={!connected}
+                      className="h-9 px-1"
+                      onClick={() => toggleDigi(mode)}
+                    >
+                      {mode}
+                    </Button>
+                  )
+                })}
+              </div>
+            </div>
+          </section>
 
+          <section aria-labelledby="rc-vfo" className="bg-panel">
+            <h2 id="rc-vfo" className="bg-navy px-3 py-1 text-center text-sm font-medium">
+              VFO
+            </h2>
+            <div className="flex flex-col gap-px p-2" role="group" aria-label="VFO">
+              {(['A', 'B'] as const).map((tag) => {
+                const stored = tag === 'A' ? vfoPair.a : vfoPair.b
+                const isActive = activeVfo === tag
+                const shown = isActive ? (snapshot.frequency ?? stored) : stored
+                const badge = (
+                  <span
+                    className={cn(
+                      'px-1.5 text-sm leading-6 font-bold',
+                      isActive ? 'bg-accent text-accent-fg' : 'bg-white/15 text-fg',
+                    )}
+                  >
+                    {tag}
+                  </span>
+                )
+                return isActive ? (
+                  <div key={tag} aria-label={`Receptor VFO ${tag}`} className="flex h-9 items-center gap-3 bg-instrument px-3">
+                    {badge}
+                    <span className="ml-auto text-xl font-light tabular-nums">
+                      {snapshot.frequency === null ? '---' : formatFrequency(shown)}
+                    </span>
+                  </div>
+                ) : (
+                  <Button
+                    key={tag}
+                    variant="tile"
+                    data-testid={`vfo-${tag.toLowerCase()}`}
+                    aria-label={`VFO ${tag} ${formatFrequency(shown)}, clic para activar`}
+                    disabled={!connected}
+                    className="h-9 justify-start gap-3"
+                    onClick={() => switchVfo(tag)}
+                  >
+                    {badge} <span className="ml-auto text-xl font-light tabular-nums">{formatFrequency(shown)}</span>
+                  </Button>
+                )
+              })}
+            </div>
+          </section>
+
+          <section aria-labelledby="rc-tx" className="flex flex-col bg-panel lg:flex-1">
+            <h2 id="rc-tx" className="bg-navy px-3 py-1 text-center text-sm font-medium">
+              TX
+            </h2>
+            <div className="flex flex-1 flex-col gap-2 p-2">
               <Button
                 data-testid="ptt"
+                variant={snapshot.tx ? 'tx' : 'navy'}
                 aria-pressed={snapshot.tx}
                 title="Mantener pulsado para transmitir"
                 disabled={!connected}
-                variant="default"
                 onPointerDown={onPttPointerDown}
                 onPointerUp={pttRelease}
                 onPointerCancel={pttRelease}
                 onLostPointerCapture={pttRelease}
                 onKeyDown={onPttKeyDown}
                 onKeyUp={onPttKeyUp}
-                className={cn(
-                  'h-14 w-32 touch-none rounded-md text-base font-semibold tracking-wide text-tx-fg uppercase select-none',
-                  snapshot.tx ? 'bg-ptt' : 'bg-ptt-ok',
-                )}
+                className="h-14 w-full touch-none text-2xl font-bold"
               >
                 {snapshot.tx ? 'TX' : 'PTT'}
               </Button>
+              <p aria-hidden className="mt-auto text-center text-xs text-fg">
+                ↑/↓ sintonizar · [ ] paso · m modo · espacio PTT · rueda sobre el espectro
+              </p>
             </div>
-
-            <p aria-hidden className="text-center text-[10px] text-muted">
-              ↑/↓ sintonizar · [ ] paso · m modo · scan ▲/▼ · mantener espacio o PTT para transmitir · rueda sobre VFO
-            </p>
-          </div>
-        </section>
-      </main>
+          </section>
+        </aside>
+      </div>
     </div>
   )
 }

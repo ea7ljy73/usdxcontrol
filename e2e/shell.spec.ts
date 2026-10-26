@@ -22,5 +22,5 @@ test('la pantalla de control muestra el estado sin radio conectada', async ({ pa
   const a11y = await new AxeBuilder({ page }).analyze()
   expect(a11y.violations).toEqual([])
 
-  await expect(page).toHaveScreenshot('pantalla-control.png', { fullPage: true })
+  await expect(page).toHaveScreenshot('pantalla-control.png', { fullPage: true, mask: [page.getByTestId('utc-clock')] })
 })

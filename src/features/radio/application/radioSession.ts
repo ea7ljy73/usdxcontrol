@@ -23,6 +23,8 @@ type Intent<T> = { value: T; sentAt: number }
 type Options = {
   minFrameGapMs?: number
   pollIntervalMs?: number
+  idlePollIntervalMs?: number
+  activeWindowMs?: number
   retryAfterMs?: number
   pttRetryMs?: number
   extended?: boolean
@@ -35,6 +37,10 @@ export const createRadioSession = (link: RadioLink, options: Options = {}) => {
   const {
     minFrameGapMs = 120,
     pollIntervalMs = 500,
+    // Cada trama CAT se oye como un chasquido en el uSDX y hace parpadear los LED del
+    // puerto: en reposo se sondea poco, y deprisa solo mientras hay actividad.
+    idlePollIntervalMs = 3_000,
+    activeWindowMs = 4_000,
     retryAfterMs = 2000,
     pttRetryMs = 350,
     extended = false,
@@ -55,6 +61,8 @@ export const createRadioSession = (link: RadioLink, options: Options = {}) => {
   let partial = ''
   let lastSentAt = Number.NEGATIVE_INFINITY
   let pollTick = 0
+  let lastActivityAt = Number.NEGATIVE_INFINITY
+  let lastPollAt = Number.NEGATIVE_INFINITY
   let pttRetryAt = 0
   let pttRetriesLeft = 0
   let detachData: (() => void) | null = null
@@ -78,6 +86,11 @@ export const createRadioSession = (link: RadioLink, options: Options = {}) => {
   }
 
   const getSnapshot = (): RadioSnapshot => cachedSnapshot
+
+  // Actividad: órdenes del usuario o cambios hechos en la propia radio (girar el dial).
+  const touch = () => {
+    lastActivityAt = Date.now()
+  }
 
   const emit = () => {
     cachedSnapshot = {
@@ -108,6 +121,7 @@ export const createRadioSession = (link: RadioLink, options: Options = {}) => {
       } else if (frequency !== polledFrequency) {
         frequency = polledFrequency
         changed = true
+        touch()
       }
     }
     if (polledMode !== null) {
@@ -119,6 +133,7 @@ export const createRadioSession = (link: RadioLink, options: Options = {}) => {
       } else if (mode !== polledMode) {
         mode = polledMode
         changed = true
+        touch()
       }
     }
     if (changed) emit()
@@ -141,12 +156,10 @@ export const createRadioSession = (link: RadioLink, options: Options = {}) => {
         reconcile(response.frequency, null)
         break
       case 'ptt-off':
+        // RX0 solo responde a nuestro RX: confirma la suelta y corta los reintentos.
+        // Si entretanto se volvió a pulsar PTT, es una respuesta atrasada y no anula el TX.
         pttRetryAt = 0
         pttRetriesLeft = 0
-        if (tx) {
-          tx = false
-          emit()
-        }
         break
       case 'mode':
         reconcile(null, response.mode)
@@ -225,7 +238,12 @@ export const createRadioSession = (link: RadioLink, options: Options = {}) => {
   }
 
   const poll = () => {
-    if (linkStatus !== 'connected' || queue.length > 0) return
+    // Transmitiendo no se sondea: cada trama es ruido y el estado no cambia.
+    if (linkStatus !== 'connected' || queue.length > 0 || tx) return
+    const now = Date.now()
+    const active = tx || intentFrequency !== null || intentMode !== null || now - lastActivityAt < activeWindowMs
+    if (!active && now - lastPollAt < idlePollIntervalMs) return
+    lastPollAt = now
     retryExpiredIntents()
     pollTick += 1
     if (extended && pollTick % 2 === 0) {
@@ -235,7 +253,14 @@ export const createRadioSession = (link: RadioLink, options: Options = {}) => {
     queue.push({ kind: 'state-get' })
   }
 
+  // El PTT se adelanta a todo lo pendiente (en FT8 el inicio de la emisión va a la
+  // décima) y sustituye a la orden de PTT anterior sin enviar: solo cuenta la última.
+  const isPtt = (command: CatCommand) => command.kind === 'ptt-on' || command.kind === 'ptt-off'
   const enqueue = (command: CatCommand) => {
+    if (isPtt(command)) {
+      queue = [command, ...queue.filter((queued) => !isPtt(queued))]
+      return
+    }
     queue = queue.filter((queued) => queued.kind !== command.kind).concat(command)
   }
 
@@ -265,6 +290,7 @@ export const createRadioSession = (link: RadioLink, options: Options = {}) => {
       return
     }
     enqueue({ kind: 'identify' })
+    touch()
     pumpTimer = setInterval(pump, PUMP_TICK_MS)
     pollTimer = setInterval(poll, pollIntervalMs)
     emit()
@@ -296,6 +322,7 @@ export const createRadioSession = (link: RadioLink, options: Options = {}) => {
   }
 
   const requestFrequency = (value: number) => {
+    touch()
     frequency = clampFrequency(value)
     intentFrequency = { value: frequency, sentAt: Date.now() }
     enqueue({ kind: 'frequency-set', frequency })
@@ -305,6 +332,7 @@ export const createRadioSession = (link: RadioLink, options: Options = {}) => {
 
   const setVolume = (value: number) => {
     if (!extended || linkStatus === 'disconnected') return
+    touch()
     volume = value
     enqueue({ kind: 'volume-set', volume: value })
     emit()
@@ -312,6 +340,7 @@ export const createRadioSession = (link: RadioLink, options: Options = {}) => {
 
   const setAgc = (value: number) => {
     if (!extended || linkStatus === 'disconnected') return
+    touch()
     agc = value
     enqueue({ kind: 'agc-set', agc: value })
     emit()
@@ -319,12 +348,14 @@ export const createRadioSession = (link: RadioLink, options: Options = {}) => {
 
   const setNr = (value: number) => {
     if (!extended || linkStatus === 'disconnected') return
+    touch()
     nr = value
     enqueue({ kind: 'nr-set', nr: value })
     emit()
   }
 
   const requestMode = (value: RadioMode) => {
+    touch()
     mode = value
     intentMode = { value, sentAt: Date.now() }
     enqueue({ kind: 'mode-set', mode: value })
@@ -333,6 +364,7 @@ export const createRadioSession = (link: RadioLink, options: Options = {}) => {
   }
 
   const pttOn = () => {
+    touch()
     tx = true
     pttRetryAt = 0
     pttRetriesLeft = 0
@@ -341,6 +373,7 @@ export const createRadioSession = (link: RadioLink, options: Options = {}) => {
   }
 
   const pttOff = () => {
+    touch()
     tx = false
     enqueue({ kind: 'ptt-off' })
     if (linkStatus === 'connected') {
@@ -351,6 +384,7 @@ export const createRadioSession = (link: RadioLink, options: Options = {}) => {
   }
 
   const clearRit = () => {
+    touch()
     enqueue({ kind: 'rit-clear' })
   }
 

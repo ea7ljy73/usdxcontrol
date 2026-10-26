@@ -1,0 +1,88 @@
+name: Ejecutables
+
+# Una etiqueta v1.2.3 compila los instaladores de los tres sistemas y los publica en una
+# release. Lanzado a mano solo compila y deja los instaladores como artefactos del run.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm build
+      - run: pnpm test
+
+  package:
+    needs: checks
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: --linux
+          - os: windows-latest
+            target: --win
+          # Un Mac Apple Silicon genera los dos DMG (arm64 e Intel): serialport es universal.
+          - os: macos-latest
+            target: --mac
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Versión desde la etiqueta
+        id: version
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+            echo "value=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=0.0.0-dev.${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
+          fi
+      - run: pnpm build:desktop
+      - name: Instaladores
+        shell: bash
+        env:
+          # Sin certificado: macOS firma ad hoc y Windows queda sin firmar.
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: pnpm exec electron-builder ${{ matrix.target }} --publish never -c.extraMetadata.version=${{ steps.version.outputs.value }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: usdxcontrol-${{ runner.os }}
+          if-no-files-found: error
+          path: |
+            dist-instalador/*.AppImage
+            dist-instalador/*.deb
+            dist-instalador/*.exe
+            dist-instalador/*.dmg
+
+  release:
+    if: github.ref_type == 'tag'
+    needs: package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: instaladores
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: instaladores/*
+          generate_release_notes: true
