@@ -25,6 +25,7 @@ const input: DigiAudioInput = {
   spectrum: () => null,
   levelDb: () => -60,
   setGain: () => undefined,
+  setMonitor: () => undefined,
 }
 
 // Transmisor falso: "suena" a su hora y dura lo que una emisión FT8 (12,64 s).
@@ -252,15 +253,15 @@ describe('operador FT8', () => {
     expect(messages(transmitter)).toEqual(['F5BZB EA7LJY 73'])
   })
 
-  it('en FT4 no transmite y lo explica', async () => {
+  it('en FT4 transmite en ciclos de 7,5 s', async () => {
     const { receiver, transmitter, operator } = setup()
     receiver.setMode('FT4')
     await receiver.start()
     operator.callCq()
     await vi.advanceTimersByTimeAsync(20_000)
-    expect(transmitter.sent).toEqual([])
-    expect(operator.getState().txEnabled).toBe(false)
-    expect(operator.getState().notices.at(-1)?.text).toMatch(/FT4 solo se recibe/)
+    expect(transmitter.sent.length).toBeGreaterThan(0)
+    expect(transmitter.sent[0].request.mode).toBe('FT4')
+    expect(transmitter.sent[0].request.startAtMs % 7_500).toBe(500)
   })
 
   it('el vigilante deja de llamar CQ tras los minutos fijados', async () => {

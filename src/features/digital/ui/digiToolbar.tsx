@@ -12,7 +12,7 @@ type Props = {
   dialHz: number | null
   onMode: (mode: DigiMode) => void
   onTune: (hz: number) => void
-  onOpenDialog: (dialog: 'audio' | 'map' | 'logbook' | 'settings') => void
+  onOpenDialog: (dialog: 'audio' | 'map' | 'logbook' | 'settings' | 'psk') => void
 }
 
 const two = (value: number) => String(value).padStart(2, '0')
@@ -129,6 +129,14 @@ export function DigiToolbar({ dialHz, onMode, onTune, onOpenDialog }: Props) {
         </Button>
         <Button variant="tile" className="h-8 px-2 text-xs" onClick={() => onOpenDialog('map')}>
           Mapa
+        </Button>
+        <Button
+          variant="tile"
+          className="h-8 px-2 text-xs"
+          title="Quién está decodificando tu señal (PSK Reporter)"
+          onClick={() => onOpenDialog('psk')}
+        >
+          PSK Reporter
         </Button>
         <Button variant="tile" className="h-8 px-2 text-xs" onClick={() => onOpenDialog('logbook')}>
           Libro ({operatorState.logbook.length})

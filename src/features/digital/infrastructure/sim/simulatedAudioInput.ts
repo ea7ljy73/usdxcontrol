@@ -39,6 +39,8 @@ export const openSimulatedAudioInput = (band: SimulatedBand, initialGain: number
     setGain(value) {
       gain = value
     },
+    // Sin radio no hay nada que escuchar por los altavoces.
+    setMonitor: () => undefined,
     stop: () => undefined,
   }
 }

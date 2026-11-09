@@ -8,7 +8,7 @@ import { createWebSerialRadioLink } from '@/features/radio/infrastructure/webSer
 import { createDigiClock, type DigiClock } from '@/features/digital/application/digiClock'
 import { createDigiReceiver, type DigiReceiver } from '@/features/digital/application/digiReceiver'
 import { createFt8Operator, type Ft8Operator } from '@/features/digital/application/ft8Operator'
-import type { AudioDeviceList, DigiTransmitter, KeyValueStore, LogFiles, UtcSource } from '@/features/digital/application/ports'
+import type { AudioDeviceList, DigiTransmitter, KeyValueStore, LogFiles, PskReporterSource, UtcSource } from '@/features/digital/application/ports'
 import { downloadAdif, readAdifFile } from '@/features/digital/infrastructure/adifFile'
 import { encodeFt8 } from '@/features/digital/infrastructure/ft8Encoder'
 import { createSdrReceiver, type SdrReceiver } from '@/features/sdr/application/sdrReceiver'
@@ -18,6 +18,7 @@ import { webUsbRtlSdr } from '@/features/sdr/infrastructure/webUsbRtlSdr'
 import { httpUtcSource } from '@/features/digital/infrastructure/httpUtcSource'
 import { localLogbook, localStore } from '@/features/digital/infrastructure/localStore'
 import { mediaDeviceList } from '@/features/digital/infrastructure/mediaDevices'
+import { createPskReporterJsonp } from '@/features/digital/infrastructure/pskReporterJsonp'
 import type { SimulatedBand } from '@/features/digital/infrastructure/sim/simulatedBand'
 import { createSimulatedTransmitter } from '@/features/digital/infrastructure/sim/simulatedTransmitter'
 import { createWasmDigiDecoder } from '@/features/digital/infrastructure/wasmDigiDecoder'
@@ -52,6 +53,7 @@ export type Digital = {
   devices: AudioDeviceList
   store: KeyValueStore
   logFiles: LogFiles
+  pskReporter: PskReporterSource
 }
 
 const hasLocation = typeof window !== 'undefined' && typeof window.location !== 'undefined'
@@ -130,6 +132,15 @@ const digital: Digital = {
     : mediaDeviceList,
   store: localStore,
   logFiles: { exportAdif: downloadAdif, importAdif: readAdifFile },
+  // En simulación no se consulta el servicio real: dos escuchas de ejemplo.
+  pskReporter: useMock
+    ? {
+        spotsFor: async () => [
+          { receiver: 'EA3SIM', locator: 'JN11CK', country: 'Spain', frequencyHz: 14_075_500, snrDb: -8, timeMs: Date.now() - 60_000, mode: 'FT8' },
+          { receiver: 'F4SIM', locator: 'JN03', country: 'France', frequencyHz: 14_075_480, snrDb: -15, timeMs: Date.now() - 180_000, mode: 'FT8' },
+        ],
+      }
+    : createPskReporterJsonp(),
 }
 
 // El operador vigila los ciclos desde el arranque (solo transmite si se le pide).

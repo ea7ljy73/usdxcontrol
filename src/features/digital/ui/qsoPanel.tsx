@@ -56,7 +56,6 @@ function Toggle({ on, onClick, children, title }: { on: boolean; onClick: () => 
 export function QsoPanel({ onOpenSettings }: { onOpenSettings: () => void }) {
   const { receiverState, operator, operatorState } = useDigital()
   const { settings, qso, dxCall, dxGrid, txEnabled, tx, waiting, oneShot } = operatorState
-  const ft4 = receiverState.mode === 'FT4'
   const messages = standardMessages({
     myCall: settings.myCall,
     myGrid: settings.myGrid,
@@ -129,7 +128,7 @@ export function QsoPanel({ onOpenSettings }: { onOpenSettings: () => void }) {
           </Field>
         </div>
         <div className="flex flex-wrap gap-1">
-          <Button variant="tile" className="h-8 px-2 text-xs" disabled={!dxCall || ft4} onClick={operator.callDx}>
+          <Button variant="tile" className="h-8 px-2 text-xs" disabled={!dxCall} onClick={operator.callDx}>
             Llamar DX
           </Button>
           <Button variant="tile" className="h-8 px-2 text-xs" disabled={!dxCall} onClick={() => operator.addWaiting()}>
@@ -160,7 +159,7 @@ export function QsoPanel({ onOpenSettings }: { onOpenSettings: () => void }) {
                 variant="tile"
                 aria-label={`Enviar Tx${index + 1} ${message.label}`}
                 className="h-6 px-2 text-xs"
-                disabled={!message.text || ft4}
+                disabled={!message.text}
                 onClick={() => operator.sendStandard(message.id)}
               >
                 Enviar
@@ -192,7 +191,7 @@ export function QsoPanel({ onOpenSettings }: { onOpenSettings: () => void }) {
           <Button variant="tile" className="h-7 px-2 text-xs" onClick={operator.restartSequence}>
             Reiniciar secuencia
           </Button>
-          <Button variant="tile" className="h-7 px-2 text-xs" disabled={ft4} onClick={operator.sendNow}>
+          <Button variant="tile" className="h-7 px-2 text-xs" onClick={operator.sendNow}>
             Enviar ahora
           </Button>
         </div>
@@ -213,24 +212,21 @@ export function QsoPanel({ onOpenSettings }: { onOpenSettings: () => void }) {
               ? `TX ▶ ${tx.message}`
               : tx.phase === 'scheduled'
                 ? `Preparado: ${tx.message}`
-                : ft4
-                  ? 'FT4: solo recepción'
-                  : nextMessage && (txEnabled || oneShot)
-                    ? `Próximo (${parityLabel}, en ${waitS} s): ${nextMessage}`
-                    : 'Sin transmisión'}
+                : nextMessage && (txEnabled || oneShot)
+                  ? `Próximo (${parityLabel}, en ${waitS} s): ${nextMessage}`
+                  : 'Sin transmisión'}
         </div>
         <div className="grid grid-cols-2 gap-1 sm:grid-cols-4 [&>button]:px-1 [&>button]:whitespace-nowrap">
           <Button
             data-testid="digi-enable-tx"
             variant={txEnabled ? 'navy' : 'tile'}
             aria-pressed={txEnabled}
-            disabled={ft4}
             className={cn('h-9 text-xs', txEnabled && 'text-error aria-pressed:text-tx-fg aria-pressed:bg-tx')}
             onClick={() => operator.setTxEnabled(!txEnabled)}
           >
             Habilitar TX
           </Button>
-          <Button variant="tile" className="h-9 text-xs" disabled={ft4} onClick={operator.callCq}>
+          <Button variant="tile" className="h-9 text-xs" onClick={operator.callCq}>
             Llamar CQ
           </Button>
           <Button

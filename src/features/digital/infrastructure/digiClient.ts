@@ -1,4 +1,6 @@
-// Cliente del worker de motores FT8/FT4. Si el worker no está disponible o falla,
+import type { DigiMode } from '../domain/slots'
+
+// Cliente del worker del motor FT8/FT4. Si el worker no está disponible o falla,
 // las funciones devuelven null y el llamante ejecuta el motor en el hilo principal.
 
 export interface DigiResult {
@@ -59,25 +61,36 @@ function request(payload: Record<string, unknown>, transfer?: ArrayBuffer[]): Pr
 }
 
 /** Decodifica en el worker. Devuelve null si hay que usar la reserva local. */
-export async function workerDecode(kind: 'ft8' | 'ft4', samples: Float32Array, sampleRate: number, mode: 'FT8' | 'FT4'): Promise<DigiResult[] | null> {
+export async function workerDecode(mode: DigiMode, samples: Float32Array, sampleRate: number): Promise<DigiResult[] | null> {
   if (broken) return null
   try {
     // Copia para poder transferir sin descolgar el buffer del llamante
     const copy = samples.slice()
-    const r = await request({ kind, samples: copy, sampleRate, mode }, [copy.buffer])
+    const r = await request({ kind: 'decode', mode, samples: copy, sampleRate }, [copy.buffer])
     return (r.results as DigiResult[]) ?? []
   } catch {
     return null
   }
 }
 
-/** Genera la señal FT8 en el worker. Devuelve null si hay que usar la reserva local. */
-export async function workerEncode(message: string, baseFrequency: number): Promise<Float32Array<ArrayBuffer> | null> {
-  if (broken) return null
+/** Genera la señal en el worker. undefined si hay que usar la reserva local; null si el mensaje no vale. */
+export async function workerEncode(mode: DigiMode, message: string, toneHz: number): Promise<Float32Array<ArrayBuffer> | null | undefined> {
+  if (broken) return undefined
   try {
-    const r = await request({ kind: 'encode', message, baseFrequency })
+    const r = await request({ kind: 'encode', mode, message, toneHz })
     return (r.wave as Float32Array<ArrayBuffer> | null) ?? null
   } catch {
-    return null
+    return undefined
+  }
+}
+
+/** Apunta indicativos en la tabla del motor del worker. false si hay que hacerlo en local. */
+export async function workerRemember(callsigns: string[]): Promise<boolean> {
+  if (broken) return false
+  try {
+    await request({ kind: 'remember', callsigns })
+    return true
+  } catch {
+    return false
   }
 }

@@ -71,13 +71,13 @@ test('la pantalla FT8 sustituye al panorámico, decodifica y FT4 usa su propio m
   await page.getByRole('button', { name: 'Limpiar' }).click()
   await expect(decodes).toHaveCount(0)
 
-  // FT4 usa otro motor (ChromeFT8): basta con que decodifique un ciclo sin error.
+  // FT4: decodifica un ciclo sin error y se puede transmitir.
   const ft4 = page.getByTestId('digi-ft4')
   await ft4.click()
   await expect(ft4).toHaveAttribute('aria-pressed', 'true')
   await expect(ft8).toHaveAttribute('aria-pressed', 'false')
   await expect(page.getByRole('heading', { name: 'Band Activity · FT4' })).toBeVisible()
-  await expect(page.getByTestId('digi-enable-tx')).toBeDisabled()
+  await expect(page.getByTestId('digi-enable-tx')).toBeEnabled()
   const panel = page.getByTestId('digi-panel')
   await expect(panel).not.toHaveAttribute('data-decoded-slot', '', { timeout: 20_000 })
   await expect(page.getByTestId('digi-status')).not.toHaveText(/error|No se pudo/i)

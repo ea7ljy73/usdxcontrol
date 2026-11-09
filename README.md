@@ -28,7 +28,8 @@ Los instaladores de cada versión están en **[Releases](https://github.com/ea7l
 
 - **Control CAT** del uSDX por USB-serie: frecuencia, VFO A/B, RIT, modo, AGC, NR, volumen y PTT (también con la barra espaciadora).
 - **Panadaptador y cascada** con sintonía por clic, arrastre, rueda o cursores.
-- **FT8 y FT4**: decodificación, Band Activity y Rx Frequency, Tx1–Tx6, auto secuencia, Call 1st, Hold Tx Freq, Tune, watchdog, mapa de estaciones, libro de guardia con importación y exportación ADIF y marcas de país o indicativo nuevo.
+- **FT8 y FT4** (recepción y transmisión): decodificación con varias pasadas y SNR/DT como WSJT-X, Band Activity y Rx Frequency, Tx1–Tx6, auto secuencia, Call 1st, Hold Tx Freq, Tune, watchdog, mapa de estaciones, PSK Reporter, libro de guardia con importación y exportación ADIF y marcas de país o indicativo nuevo.
+- **Audio**: elección de las tarjetas de entrada y salida de la radio y escucha de la radio por los altavoces del PC.
 - **RTL-SDR** (V3 y clones como HTOOL) por USB directo o por `rtl_tcp`. El SDR deja de recibir mientras el uSDX transmite.
 - **Modo demostración** sin radio: abre la app con `?radio=mock` en la versión web.
 
@@ -42,3 +43,5 @@ pnpm dev            # versión web en http://localhost:5173 (?radio=mock para si
 pnpm dev:desktop    # app de escritorio
 pnpm lint && pnpm test && pnpm test:e2e && pnpm test:desktop
 ```
+
+El motor FT8/FT4 es WebAssembly compilado desde [ft8_lib](https://github.com/kgoba/ft8_lib) (MIT). Su fuente está en `native/ftx/` y se recompila con `native/ftx/build.sh` (necesita Docker); el resultado se guarda en `src/features/digital/infrastructure/vendor/`.

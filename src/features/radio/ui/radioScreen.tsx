@@ -18,7 +18,9 @@ import { Panadapter, type SpectrumTrace } from '@/features/spectrum/ui/panadapte
 import { useSpectrumFeed } from '@/features/spectrum/ui/useSpectrumFeed'
 import { digiDialHz } from '@/features/digital/domain/digiFrequencies'
 import { DIGI_MODES, type DigiMode } from '@/features/digital/domain/slots'
+import { AudioDevicesDialog } from '@/features/digital/ui/audioDevicesDialog'
 import { DigiWorkspace } from '@/features/digital/ui/digiWorkspace'
+import { useAudioSettings } from '@/features/digital/ui/useAudioSettings'
 import { useDigital, useStoredState } from '@/features/digital/ui/useDigital'
 import { SdrButton } from '@/features/sdr/ui/sdrButton'
 import { useSdr } from '@/features/sdr/ui/useSdr'
@@ -82,6 +84,8 @@ export function RadioScreen() {
   const audio = useSpectrumFeed(spectrumFeeds.audio)
   const { receiver: digi, receiverState: digiState, operator: digiOperator } = useDigital()
   const [digiOn, setDigiOn] = useState(false)
+  const [audioSettings, setAudioSettings] = useAudioSettings()
+  const [audioOpen, setAudioOpen] = useState(false)
   const { sdr, sdrState } = useSdr()
   const [spectrumView, setSpectrumView] = useStoredState<{ trace: SpectrumTrace; audioScope: boolean }>('spectrum.view', {
     trace: 'relleno',
@@ -439,6 +443,9 @@ export function RadioScreen() {
     }
     setDigiOn(true)
     selectDigiMode(mode)
+    // Al abrir la pantalla se decodifica siempre, también si el audio ya estaba abierto
+    // solo para la escucha en el PC (en pausa).
+    void digi.start()
   }
 
   const passbandAudioHz =
@@ -529,15 +536,27 @@ export function RadioScreen() {
           >
             {connecting ? 'Conectando' : connected ? 'Desconectar' : 'Conectar'}
           </Button>
+          <Button
+            data-testid="audio-button"
+            variant="navy"
+            className="h-7 gap-1.5 rounded-md px-3 text-xs"
+            aria-label={`Sonido: tarjetas de la radio${audioSettings.monitorEnabled ? ', escuchando en el PC' : ''}`}
+            title="Tarjetas de sonido: entrada (RX), salida (TX) y escucha en el PC"
+            onClick={() => setAudioOpen(true)}
+          >
+            <span aria-hidden className={cn('size-2 rounded-full', audioSettings.monitorEnabled ? 'bg-rx' : 'bg-dim')} />
+            Sonido
+          </Button>
           <SdrButton />
           <UtcClock />
         </div>
       </header>
+      <AudioDevicesDialog open={audioOpen} onOpenChange={setAudioOpen} audio={audioSettings} onAudioChange={setAudioSettings} />
 
       <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
         <main className="flex min-h-0 min-w-0 flex-1 flex-col">
           {digiVisible ? (
-            <DigiWorkspace dialHz={snapshot.frequency} onMode={selectDigiMode} onTune={tuneDigi} />
+            <DigiWorkspace dialHz={snapshot.frequency} onMode={selectDigiMode} onTune={tuneDigi} onOpenAudio={() => setAudioOpen(true)} />
           ) : (
             <Panadapter
               disabled={!connected}

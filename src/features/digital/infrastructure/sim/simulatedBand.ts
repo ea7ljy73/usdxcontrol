@@ -71,7 +71,7 @@ export const createSimulatedBand = async (encode: Ft8Encode) => {
       const { reply, state } = partnerReply(partner.config, partner.state, message)
       partner.state = state
       if (!reply) return
-      const samples = await encode(reply, PARTNER_TONE_HZ)
+      const samples = await encode('FT8', reply, PARTNER_TONE_HZ)
       if (!samples) return
       injections.push({ startMs: startAtMs + SLOT_MS, samples })
       const now = Date.now()

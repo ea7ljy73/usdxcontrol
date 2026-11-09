@@ -1,7 +1,7 @@
 import { addSlotDecodes, addTxEcho, type DigiDecode, type RawDecode } from '../domain/decodeList'
 import { slotIndex, slotLengthMs, slotStartMs, type DigiMode } from '../domain/slots'
 import type { DigiClock } from './digiClock'
-import type { DigiAudioInput, DigiAudioInputFactory, DigiDecoder } from './ports'
+import type { DigiAudioInput, DigiAudioInputFactory, DigiDecoder, MonitorOptions } from './ports'
 
 export type DigiReceiverState = {
   mode: DigiMode
@@ -14,9 +14,16 @@ export type DigiReceiverState = {
   inputGain: number
 }
 
-// Se decodifica antes de cerrar el ciclo, cuando ya han terminado las emisiones
-// (FT8 acaba a los 13,1 s), para poder contestar en el ciclo siguiente.
-export const DECODE_AT_MS: Record<DigiMode, number> = { FT8: 14_000, FT4: 6_400 }
+// Se decodifica antes de cerrar el ciclo, cuando ya han terminado las emisiones (FT8
+// acaba a los 13,1 s y FT4 a los 5,5 s con DT = 0; se deja casi 1,3 s de margen para las
+// que llegan tarde) y aún hay tiempo de contestar en el ciclo siguiente.
+export const DECODE_AT_MS: Record<DigiMode, number> = { FT8: 14_400, FT4: 6_700 }
+
+// Espera máxima a que llegue el final del audio de un ciclo antes de darlo por perdido.
+const AUDIO_WAIT_MS = 1_500
+
+// Ciclos que se decodifican como mucho de un fichero (2 min de FT8).
+const MAX_FILE_CYCLES = 8
 
 type SlotListener = (event: { index: number; mode: DigiMode; decodes: DigiDecode[] }) => void
 
@@ -48,6 +55,9 @@ export const createDigiReceiver = ({ decoder, input: openInput, clock, tickMs = 
     inputGain: 1,
   }
   let input: DigiAudioInput | null = null
+  let monitor: MonitorOptions = { enabled: false, deviceId: null, volume: 0.5 }
+  // El audio está abierto solo para escucharlo en el PC (sin decodificar, en pausa).
+  let monitorOnly = false
   let timer: ReturnType<typeof setInterval> | null = null
   let lastSlot: number | null = null
   let session = 0
@@ -62,6 +72,12 @@ export const createDigiReceiver = ({ decoder, input: openInput, clock, tickMs = 
   const runDecode = async (fromUtcMs: number, toUtcMs: number, slotStartUtcMs: number, index: number | null) => {
     if (!input || state.decoding) return
     const mode = state.mode
+    // Como WSJT-X, no se decodifica el ciclo en el que hemos transmitido: la radio devuelve
+    // nuestro propio audio y solo saldría nuestro mensaje.
+    if (index !== null && state.decodes.some((decode) => decode.tx && decode.slotStartMs === slotStartUtcMs)) {
+      slotListeners.forEach((listener) => listener({ index, mode, decodes: [] }))
+      return
+    }
     const samples = input.read(clock.toLocal(fromUtcMs), clock.toLocal(toUtcMs))
     // Tramo sin capturar entero (se empezó a escuchar a mitad): no se decodifica.
     if (samples === null) return
@@ -87,14 +103,26 @@ export const createDigiReceiver = ({ decoder, input: openInput, clock, tickMs = 
   }
 
   const tick = () => {
-    if (state.status !== 'on') return
+    if (state.status !== 'on' || !input || state.decoding) return
     const now = clock.now()
     const mode = state.mode
-    const index = slotIndex(now, mode)
+    let index = slotIndex(now, mode)
+    // Al empezar un ciclo aún se puede estar esperando el final del audio del anterior.
+    if (now - slotStartMs(index, mode) < DECODE_AT_MS[mode]) index -= 1
+    if (lastSlot !== null && index <= lastSlot) return
     const start = slotStartMs(index, mode)
-    if (now - start < DECODE_AT_MS[mode] || lastSlot === index) return
+    const end = start + DECODE_AT_MS[mode]
+    // El último bloque de audio llega con algo de retraso (latencia de captura): si aún no
+    // está, se reintenta en el siguiente tick en vez de perder el ciclo. Pasado el margen
+    // (p. ej. se empezó a escuchar a mitad), el ciclo se da por perdido.
+    if (now - end > AUDIO_WAIT_MS) {
+      lastSlot = index
+      return
+    }
+    const ownTx = state.decodes.some((decode) => decode.tx && decode.slotStartMs === start)
+    if (!ownTx && input.read(clock.toLocal(start), clock.toLocal(end)) === null) return
     lastSlot = index
-    void runDecode(start, start + DECODE_AT_MS[mode], start, index)
+    void runDecode(start, end, start, index)
   }
 
   const openAudio = async () => {
@@ -108,13 +136,15 @@ export const createDigiReceiver = ({ decoder, input: openInput, clock, tickMs = 
         return
       }
       input = opened
+      opened.setMonitor(monitor)
     } catch (error) {
       update({ status: 'error', lastError: error instanceof Error ? error.message : String(error) })
       return
     }
     lastSlot = null
     timer ??= setInterval(tick, tickMs)
-    update({ status: 'on' })
+    // Si mientras se abría se ha pulsado Escuchar, se decodifica aunque se abriera para la escucha.
+    update({ status: monitorOnly ? 'paused' : 'on' })
     tick()
   }
 
@@ -128,8 +158,11 @@ export const createDigiReceiver = ({ decoder, input: openInput, clock, tickMs = 
   }
 
   const start = async () => {
+    monitorOnly = false
     if (state.status === 'on' || state.status === 'starting') return
     if (state.status === 'paused' && input) {
+      // Lo que terminó durante la pausa no se decodifica; el ciclo en curso, sí.
+      lastSlot = slotIndex(clock.now(), state.mode) - 1
       update({ status: 'on' })
       return
     }
@@ -138,8 +171,21 @@ export const createDigiReceiver = ({ decoder, input: openInput, clock, tickMs = 
 
   const stop = () => {
     if (state.status === 'off' && input === null) return
+    // Con la escucha en el PC activa el audio sigue abierto, pero ya no se decodifica.
+    if (monitor.enabled && input) {
+      session += 1
+      monitorOnly = true
+      update({ status: 'paused', decoding: false })
+      return
+    }
     closeAudio()
     update({ status: 'off', decoding: false })
+  }
+
+  // Abre el audio solo para la escucha en el PC.
+  const openForMonitor = async () => {
+    monitorOnly = true
+    await openAudio()
   }
 
   return {
@@ -164,6 +210,18 @@ export const createDigiReceiver = ({ decoder, input: openInput, clock, tickMs = 
         if (wasPaused) update({ status: 'paused' })
       }
     },
+    // Escuchar la radio por los altavoces del PC.
+    setMonitor(options: MonitorOptions) {
+      monitor = options
+      input?.setMonitor(options)
+      if (options.enabled && input === null && state.status === 'off') {
+        void openForMonitor()
+      } else if (!options.enabled && monitorOnly && state.status === 'paused') {
+        monitorOnly = false
+        closeAudio()
+        update({ status: 'off', decoding: false })
+      }
+    },
     setInputGain(gain: number) {
       input?.setGain(gain)
       update({ inputGain: gain })
@@ -173,21 +231,30 @@ export const createDigiReceiver = ({ decoder, input: openInput, clock, tickMs = 
       const now = clock.now()
       return runDecode(now - slotLengthMs(state.mode), now, slotStartMs(slotIndex(now, state.mode), state.mode), null)
     },
-    // Decodifica un fichero de audio con los dos motores (FT8 y FT4).
+    // Decodifica un fichero de audio en FT8 y en FT4, ciclo a ciclo desde su comienzo
+    // (como "Abrir" de WSJT-X, el fichero debe empezar al inicio de un ciclo).
     async decodeFile(samples: Float32Array, sampleRate: number): Promise<number> {
       update({ decoding: true })
       try {
-        const [ft8, ft4] = await Promise.all([
-          decoder.decode('FT8', samples, sampleRate).catch((): RawDecode[] => []),
-          decoder.decode('FT4', samples, sampleRate).catch((): RawDecode[] => []),
-        ])
-        const raw = [...ft8, ...ft4]
+        const raw: RawDecode[] = []
+        for (const mode of ['FT8', 'FT4'] as const) {
+          const length = Math.round((slotLengthMs(mode) / 1_000) * sampleRate)
+          const cycles = Math.min(MAX_FILE_CYCLES, Math.max(1, Math.ceil(samples.length / length)))
+          for (let cycle = 0; cycle < cycles; cycle++) {
+            const part = padToSlot(samples.subarray(cycle * length, (cycle + 1) * length), length)
+            raw.push(...(await decoder.decode(mode, part, sampleRate).catch((): RawDecode[] => [])))
+          }
+        }
         const now = clock.now()
         update({ decodes: addSlotDecodes(state.decodes, raw, state.mode, slotStartMs(slotIndex(now, state.mode), state.mode)) })
         return raw.length
       } finally {
         update({ decoding: false })
       }
+    },
+    // Indicativos que conviene que el decodificador conozca (el propio y el DX).
+    rememberCallsigns(callsigns: string[]) {
+      void decoder.rememberCallsigns?.(callsigns.filter(Boolean)).catch(() => undefined)
     },
     addTxEcho(message: string, slotStartUtcMs: number, toneHz: number) {
       update({ decodes: addTxEcho(state.decodes, message, state.mode, slotStartUtcMs, toneHz) })

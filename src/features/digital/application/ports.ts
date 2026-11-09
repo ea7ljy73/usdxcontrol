@@ -1,11 +1,15 @@
 import type { SpectrumFrame } from '@/features/spectrum/application/ports'
 import type { RawDecode } from '../domain/decodeList'
 import type { LogEntry } from '../domain/logbook'
+import type { PskSpot } from '../domain/pskReport'
 import type { DigiMode } from '../domain/slots'
 
 // Decodificador FT8/FT4 (WASM). Recibe el audio de un ciclo.
 export type DigiDecoder = {
   decode(mode: DigiMode, samples: Float32Array, sampleRate: number): Promise<RawDecode[]>
+  // Indicativos conocidos (el propio, el DX): los mensajes que los llevan abreviados (<...>)
+  // se muestran completos.
+  rememberCallsigns?(callsigns: string[]): Promise<void>
 }
 
 // Audio de la radio con marcas de tiempo: devuelve lo capturado entre dos instantes
@@ -16,12 +20,16 @@ export type PcmTap = {
   stop(): void
 }
 
+// Escucha en el PC: el audio de la radio sale también por otra tarjeta (altavoces).
+export type MonitorOptions = { enabled: boolean; deviceId: string | null; volume: number }
+
 // Entrada de audio de los modos digitales: además del PCM da el espectro para la
 // cascada y el nivel para el vúmetro.
 export type DigiAudioInput = PcmTap & {
   spectrum(): SpectrumFrame | null
   levelDb(): number
   setGain(gain: number): void
+  setMonitor(options: MonitorOptions): void
 }
 
 export type AudioInputOptions = { deviceId: string | null; gain: number }
@@ -82,3 +90,6 @@ export type LogFiles = {
   exportAdif(entries: LogEntry[], callsign: string): void
   importAdif(file: File, myCall: string): Promise<LogEntry[]>
 }
+
+// Escuchas de nuestra señal en PSK Reporter (última hora como mucho).
+export type PskReporterSource = { spotsFor(callsign: string): Promise<PskSpot[]> }

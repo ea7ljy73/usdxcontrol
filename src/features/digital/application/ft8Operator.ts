@@ -17,6 +17,7 @@ import {
   nextTxSlot,
   oppositeParity,
   slotIndex,
+  slotLengthMs,
   slotParity,
   slotStartMs,
   TX_START_OFFSET_MS,
@@ -187,8 +188,15 @@ export const createFt8Operator = ({
     } satisfies StoredQso)
   }
 
+  let rememberedKey = ''
   const update = (patch: Partial<OperatorState>) => {
     state = { ...state, ...patch }
+    // El decodificador conoce nuestro indicativo y el del DX para resolver los abreviados (<...>).
+    const key = `${state.settings.myCall}|${state.dxCall}`
+    if (key !== rememberedKey) {
+      rememberedKey = key
+      receiver.rememberCallsigns([state.settings.myCall, state.dxCall])
+    }
     if ('qso' in patch || 'dxCall' in patch || 'dxGrid' in patch) persistQso()
     if ('settings' in patch) store.set('digi.settings', state.settings)
     listeners.forEach((listener) => listener(state))
@@ -294,7 +302,7 @@ export const createFt8Operator = ({
         ptt.off()
         opened.cancel()
         releaseTx()
-      }, startLocal - Date.now() + 15_000),
+      }, startLocal - Date.now() + slotLengthMs(mode)),
     )
     void opened.started.then(() => {
       if (own !== generation) return
@@ -343,11 +351,6 @@ export const createFt8Operator = ({
     if (decodedSlot < index - 1 && now < start + 300) return
     const message = desiredMessage()
     if (!message) return
-    if (mode === 'FT4') {
-      lastTxSlot = index
-      stopForError('En FT4 solo se recibe: todavía no hay codificador FT4. Cambia a FT8 para transmitir.')
-      return
-    }
     if (!canTransmit()) {
       lastTxSlot = index
       stopForError('Conecta la radio para transmitir')
@@ -355,7 +358,7 @@ export const createFt8Operator = ({
     }
     if (!isEncodableMessage(message)) {
       lastTxSlot = index
-      stopForError(`«${message}» no es un mensaje FT8 válido`)
+      stopForError(`«${message}» no es un mensaje ${mode} válido`)
       return
     }
     void begin(index, message)
@@ -447,6 +450,8 @@ export const createFt8Operator = ({
     }
   }
   restore()
+  rememberedKey = `${state.settings.myCall}|${state.dxCall}`
+  receiver.rememberCallsigns([state.settings.myCall, state.dxCall])
 
   return {
     start() {

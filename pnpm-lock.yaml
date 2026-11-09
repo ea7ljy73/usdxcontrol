@@ -57,9 +57,6 @@ importers:
       electron-vite:
         specifier: ^6.0.0
         version: 6.0.0(vite@8.3.5(@types/node@24.19.2)(jiti@2.7.0))
-      ft8js:
-        specifier: 0.0.3
-        version: 0.0.3
       jsdom:
         specifier: ^30.1.3
         version: 30.1.3(@noble/hashes@2.4.0)
@@ -2006,9 +2003,6 @@ packages:
     resolution: {integrity: sha512-5xoDfX+fL7faATnagmWPpbFtwh/R77WmMMqqHGS65C3vvB0YHrgF+B1YmZ3441tMj5n63k0212XNoJwzlhffQw==}
     engines: {node: ^8.16.0 || ^10.6.0 || >=11.0.0}
     os: [darwin]
-
-  ft8js@0.0.3:
-    resolution: {integrity: sha512-a84qoytwQ6h5CNxVB1SL1MgwwN6S0sGD8VIeaUHk7zWfzQJVs84VtEzXf/ZQmOpUSGRSfq55zCNFUwEgXsRQpg==}
 
   function-bind@1.1.2:
     resolution: {integrity: sha512-7XHNxH7qX9xG5mIwxkhumTox/MIRNcOgDrxWsMt2pAr23WHp6MrRlN7FBSFpCpr+oVO0F744iUgR82nJMfG2SA==}
@@ -5074,8 +5068,6 @@ snapshots:
 
   fsevents@2.3.3:
     optional: true
-
-  ft8js@0.0.3: {}
 
   function-bind@1.1.2: {}
 

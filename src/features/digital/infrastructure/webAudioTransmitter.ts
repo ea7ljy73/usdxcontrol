@@ -6,7 +6,7 @@ const RESUME_TIMEOUT_MS = 1_000
 
 type SinkContext = AudioContext & { setSinkId?: (deviceId: string) => Promise<void>; outputLatency?: number }
 
-// Emite la señal FT8 por la tarjeta de sonido elegida, a la hora exacta del ciclo.
+// Emite la señal FT8/FT4 por la tarjeta de sonido elegida, a la hora exacta del ciclo.
 export const createWebAudioTransmitter = (encode: Ft8Encode): DigiTransmitter => {
   let context: SinkContext | null = null
   let amplifier: GainNode | null = null
@@ -43,9 +43,9 @@ export const createWebAudioTransmitter = (encode: Ft8Encode): DigiTransmitter =>
       const ctx = ensureContext()
       if (ctx.state === 'suspended') void ctx.resume().catch(() => undefined)
     },
-    async transmit({ message, toneHz, startAtMs }): Promise<TxHandle> {
-      const wave = await encode(message, toneHz)
-      if (!wave) throw new Error('mensaje no válido para FT8')
+    async transmit({ mode, message, toneHz, startAtMs }): Promise<TxHandle> {
+      const wave = await encode(mode, message, toneHz)
+      if (!wave) throw new Error(`mensaje no válido para ${mode}`)
       const ctx = ensureContext()
       await running(ctx)
       const pcm = resampleAudio(wave, 12_000, ctx.sampleRate)

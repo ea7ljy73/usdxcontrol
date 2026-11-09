@@ -1,10 +1,14 @@
+import { container } from './container'
 import { ContainerProvider } from './containerProvider'
+import { CrashScreen } from './crashScreen'
 import { RadioScreen } from '@/features/radio/ui/radioScreen'
 
 export default function App() {
   return (
-    <ContainerProvider>
-      <RadioScreen />
-    </ContainerProvider>
+    <CrashScreen onCrash={() => container.digital.operator.haltTx()}>
+      <ContainerProvider>
+        <RadioScreen />
+      </ContainerProvider>
+    </CrashScreen>
   )
 }

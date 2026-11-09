@@ -27,6 +27,7 @@ Los detalles de permisos y reglas udev están en [instalacion-electron.md](insta
 - **Volumen** del uSDX.
 - **Frecuencia y modo** del VFO activo.
 - Estado del CAT y botón **Conectar/Desconectar**.
+- Botón **Sonido**: tarjetas de sonido de la radio y escucha en el PC (ver apartado 5). El punto verde indica que estás escuchando la radio por los altavoces del PC.
 - Botón **SDR**: el punto verde indica que el SDR está recibiendo (ver apartado 6).
 - Hora **UTC**.
 
@@ -81,24 +82,29 @@ Pulsa **FT8** o **FT4** en *Mode*. La estación digital sustituye al panadaptado
 ### Primera vez
 
 1. Abre **Ajustes…** y escribe **Mi indicativo** y **Mi locator**. Ahí también eliges si cerrar los QSO con RR73 o con 73, el tiempo del watchdog de TX y si el turno de TX (par o impar) se elige solo.
-2. En **Audio…**, elige la entrada (el audio del uSDX que llega al ordenador) y la salida (el audio que va hacia el uSDX para transmitir).
+2. En **Sonido** (cabecera) o **Audio…** (barra FT8), elige la entrada (el audio del uSDX que llega al ordenador) y la salida (el audio que va hacia el uSDX para transmitir).
 3. Si la hora del ordenador no es exacta, usa **Sincronizar hora**. FT8 necesita un error de menos de 1 s.
 
 ### Barra de herramientas
 
-- **FT8 / FT4**: protocolo.
+- **FT8 / FT4**: protocolo. Los dos reciben y transmiten.
 - **Bandas**: frecuencias FT8 de 160 m a 6 m.
 - **Escuchar / Pausa / Parar**: controlan la recepción.
-- **Ajustes…**, **Audio…**, **Mapa** (estaciones decodificadas por locator) y **Libro** (QSO guardados, con importación y exportación ADIF).
+- **Ajustes…**, **Audio…**, **Mapa** (estaciones decodificadas por locator), **PSK Reporter** (quién decodifica tu señal) y **Libro** (QSO guardados, con importación y exportación ADIF).
 - Reloj UTC y cuenta atrás del ciclo en curso.
 
 ### Band Activity
 
 Muestra todos los decodificados del ciclo: UTC, dB, DT, frecuencia de audio, mensaje y país.
 
+- **dB** es la SNR en 2500 Hz, calculada como en WSJT-X (de −24 dB en adelante). Es la que se envía como reporte.
+- **DT** es el desfase respecto al inicio de la emisión (0,5 s tras el comienzo del ciclo). Si casi todas las estaciones salen con más de ±1 s, la hora del ordenador va desviada: usa *Sincronizar hora*.
+- El ciclo se decodifica a los 14,4 s (FT8) o 6,7 s (FT4), con varias pasadas: tras sacar las señales fuertes se restan y se buscan las débiles que tapaban.
+- Los ciclos en los que transmites no se decodifican, como en WSJT-X.
+
 - **Solo CQ**: filtra las llamadas CQ.
 - **Decodificar**: vuelve a decodificar el último ciclo.
-- **Abrir WAV…**: decodifica una grabación.
+- **Abrir WAV…**: decodifica una grabación en FT8 y en FT4, ciclo a ciclo desde su comienzo (hasta 2 minutos).
 - **Limpiar**: borra la lista.
 
 Las marcas **★** (país o indicativo nuevo) y **✓** (ya trabajado) salen del libro de guardia. Las líneas en verde son CQ, y las dirigidas a ti se resaltan.
@@ -125,14 +131,28 @@ Las marcas **★** (país o indicativo nuevo) y **✓** (ya trabajado) salen del
 
 El estado de TX indica el próximo turno y su cuenta atrás. El watchdog desactiva la TX tras el tiempo configurado sin intervención.
 
+**Consejos para completar QSOs con poca potencia**:
+
+- No transmitas en la frecuencia de la estación que llamas: activa *Hold Tx Freq*, pon tu TX en un hueco libre con **Mayús + clic** y después responde con doble clic. Así no te pisan los demás llamantes.
+- Una estación con pila (va contestando a otros) elige al más fuerte; es más fácil con quien llama CQ sin respuestas.
+- Lanza tu CQ en una zona vacía de la cascada.
+- Mira en **PSK Reporter** hasta dónde llega tu señal en ese momento.
+
+### PSK Reporter
+
+Muestra en un mapa y en una lista las estaciones que han decodificado tu indicativo en la última hora: receptor, locator, país, SNR, banda y distancia, con un resumen (cuántas te oyen, mejor SNR y la más lejana). Sirve para comprobar que tu emisión sale bien. Se actualiza cada 5 minutos con la ventana abierta; PSK Reporter no admite consultas más frecuentes.
+
 ## 5. Ajustes de audio
 
-La entrada y la salida se eligen en **Audio…**. Los medidores **RX** y **TX** bajo la cascada ayudan a ajustar niveles:
+Se abren con **Sonido** en la cabecera (siempre visible, también sin radio) o con **Audio…** en la barra FT8; los dos abren el mismo diálogo:
 
-- **RX**: ajusta el volumen de entrada para que el ruido de fondo quede en la parte baja de la barra.
-- **TX**: sube la potencia en el uSDX y deja el nivel de audio sin saturar.
+- **Entrada (RX)**: la tarjeta de sonido por la que llega el audio del uSDX. Con su **ganancia** y el medidor **RX**: ajusta para que el ruido de fondo quede en la parte baja de la barra.
+- **Salida (TX)**: la tarjeta que lleva el audio FT8/FT4 al uSDX. Con el **nivel de transmisión** y el medidor **TX**: sube la potencia en el uSDX y deja el nivel de audio sin saturar (usa *Tune*).
+- **Escuchar la radio en el PC**: saca el audio recibido por otra tarjeta (los altavoces o los cascos del ordenador), con su **volumen**. Funciona también fuera de FT8. No puede salir por la misma tarjeta que va a la radio: la app avisa y no la activa.
 
-Si el navegador bloquea el audio, vuelve a pulsar **Habilitar TX**.
+La lista de tarjetas se actualiza sola al enchufar o quitar un dispositivo. Si los nombres no aparecen, acepta el permiso de audio que pide el navegador.
+
+Si el navegador bloquea el audio, haz clic en cualquier parte de la ventana o vuelve a pulsar **Habilitar TX**.
 
 ## 6. Receptor SDR (RTL-SDR)
 
@@ -167,7 +187,10 @@ Un RTL-SDR (V3 o clones como HTOOL) da el espectro de toda la banda en el panada
 | Síntoma | Solución |
 | --- | --- |
 | El puerto del uSDX no aparece | Instala el driver CH340/CP210x. En Linux, comprueba que tu usuario está en el grupo `dialout`. |
-| FT8 no decodifica nada | Revisa la hora (*Sincronizar hora*), la entrada de audio y el medidor RX. |
+| FT8 no decodifica nada | Revisa la hora (*Sincronizar hora*), la entrada de audio y el medidor RX. Comprueba que *Escuchar* está activo (no en *Pausa*). |
+| No se oye la radio en el PC | Activa *Escuchar la radio en el PC* en **Sonido**, elige los altavoces (no la tarjeta de la radio) y haz clic en la ventana. |
+| La tarjeta de sonido está en uso | Cierra WSJT-X, JTDX u otro programa que la tenga abierta. |
+| Me oyen pero no completo QSOs | Mira *PSK Reporter*. Si te oyen, transmite en un hueco libre (*Hold Tx Freq*) y evita las pilas. |
 | Habilitar TX no transmite | Comprueba la salida de audio y que el indicativo esté configurado. Pulsa de nuevo *Habilitar TX* para desbloquear el audio. |
 | El SDR no conecta por USB | En Linux, bloquea `dvb_usb_rtl28xxu`. En Windows, instala WinUSB con Zadig. Cierra cualquier otro programa que use el RTL-SDR. |
 | El espectro del SDR está vacío en HF | Activa *Muestreo directo · Rama Q*, o configura el upconverter. |

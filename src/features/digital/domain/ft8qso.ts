@@ -66,7 +66,8 @@ export function stopQso(state: QsoState): QsoState {
   return { ...state, phase: 'idle', partner: '', initiator: null }
 }
 
-const clampReport = (n: number): number => Math.max(-20, Math.min(30, Math.round(n)))
+// Como WSJT-X: la SNR del decodificador va de −24 dB en adelante.
+const clampReport = (n: number): number => Math.max(-24, Math.min(30, Math.round(n)))
 
 /**
  * Procesa un mensaje decodificado. Solo actúa si va dirigido a mí.
