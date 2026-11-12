@@ -39,12 +39,12 @@ Reload with `sudo udevadm control --reload-rules && sudo udevadm trigger` and lo
 
 ## Windows
 
-- NSIS installer: run `usdxcontrol-<version>-win-x64.exe`.
+- Installer: run `usdxcontrol-<version>-win-x64.exe`. The app is not signed: if Windows shows *“Windows protected your PC”*, click **More info → Run anyway**.
 - Driver: if the port does not show up, install the driver for the USB-serial converter (CH340/CP210x) of the adapter used with the uSDX.
 
 ## macOS
 
-Open the `.dmg` (arm64 for Apple Silicon, x64 for Intel) and drag the app to Applications. The app is not signed, so the first time open it with right-click → *Open*.
+Open the `.dmg` (arm64 for Apple Silicon, x64 for Intel) and drag the app to Applications. The app is not signed, so the first time macOS blocks it: open it once, then go to **System Settings → Privacy & Security** and click **Open Anyway** (on older macOS, right-click → *Open*). If macOS says the app *“is damaged”*, run `xattr -cr "/Applications/uSDX Control.app"` in Terminal. Allow microphone access when asked: the app uses it to hear the radio's sound card.
 
 ## Wiring and parameters
 

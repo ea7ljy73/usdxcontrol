@@ -44,13 +44,13 @@ vuelve a iniciar sesión para que el cambio de grupo aplique.
 
 ## Windows
 
-- Instalador NSIS: ejecutar `usdxcontrol-<versión>-win-x64.exe`.
+- Instalador: ejecuta `usdxcontrol-<versión>-win-x64.exe`. La app no está firmada: si Windows muestra *«Windows protegió su PC»*, pulsa **Más información → Ejecutar de todas formas**.
 - Driver: si el puerto no aparece, instala el driver del convertidor
   USB-serial (CH340/CP210x) del adaptador usado con el uSDX.
 
 ## macOS
 
-Abre el `.dmg` (arm64 para Apple Silicon, x64 para Intel) y arrastra la app a Aplicaciones. La app no está firmada, así que la primera vez hay que abrirla con clic derecho → *Abrir*.
+Abre el `.dmg` (arm64 para Apple Silicon, x64 para Intel) y arrastra la app a Aplicaciones. La app no está firmada, así que la primera vez macOS la bloquea: ábrela una vez, ve a **Ajustes del Sistema → Privacidad y seguridad** y pulsa **Abrir igualmente** (en macOS antiguos, clic derecho → *Abrir*). Si macOS dice que la app *«está dañada»*, ejecuta en Terminal `xattr -cr "/Applications/uSDX Control.app"`. Permite el acceso al micrófono cuando lo pida: la app lo usa para oír la tarjeta de sonido de la radio.
 
 ## Cableado y parámetros
 

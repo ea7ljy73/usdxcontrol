@@ -6,21 +6,64 @@ Control a **uSDX** transceiver from your computer: panadapter and waterfall, VFO
 
 ![FT8 station](docs/capturas/en/ft8.png)
 
-## Downloads
+## Download and install
 
 > **Beta version.** It works and is used daily, but it may still have bugs. If you find one, please open an [issue](https://github.com/ea7ljy73/usdxcontrol/issues) with your system, version and what you were doing.
 
-Installers for every version are on **[Releases](https://github.com/ea7ljy73/usdxcontrol/releases)**.
+### 1. Download
 
-| System | File | Notes |
-| --- | --- | --- |
-| Windows 10/11 (x64) | `usdxcontrol-<version>-win-x64.exe` | NSIS installer |
-| macOS Apple Silicon | `usdxcontrol-<version>-mac-arm64.dmg` | Unsigned: the first time, right-click → *Open* |
-| macOS Intel | `usdxcontrol-<version>-mac-x64.dmg` | Unsigned: the first time, right-click → *Open* |
-| Linux (any distribution) | `usdxcontrol-<version>-linux-x86_64.AppImage` | `chmod +x` and run |
-| Debian/Ubuntu Linux | `usdxcontrol-<version>-linux-amd64.deb` | `sudo apt install ./usdxcontrol-….deb` |
+1. Open **[Releases](https://github.com/ea7ljy73/usdxcontrol/releases)** and pick the newest version (at the top).
+2. Under **Assets**, download **only the file for your system**:
 
-[All versions](https://github.com/ea7ljy73/usdxcontrol/releases) · **[Getting started tutorial](docs/en/tutorial.md)** · [User manual](docs/en/manual.md) · [Installation and serial port permissions](docs/en/installation.md)
+| Your computer | File to download |
+| --- | --- |
+| Windows 10/11 | `usdxcontrol-<version>-win-x64.exe` |
+| Mac with Apple chip (M1, M2, M3, M4…) | `usdxcontrol-<version>-mac-arm64.dmg` |
+| Mac with Intel processor | `usdxcontrol-<version>-mac-x64.dmg` |
+| Ubuntu, Debian, Linux Mint… | `usdxcontrol-<version>-linux-amd64.deb` |
+| Any other Linux | `usdxcontrol-<version>-linux-x86_64.AppImage` |
+
+Not sure which Mac you have? Apple menu → *About This Mac*: it says *Chip Apple M…* or *Processor Intel…*. Ignore the *Source code* files: they are only for developers.
+
+### 2. Install
+
+**Windows**
+
+1. Double-click the `.exe`. It installs on its own and creates a desktop shortcut.
+2. The app is not signed, so Windows may show *“Windows protected your PC”*: click **More info → Run anyway**.
+3. If the radio's port does not appear later, install the driver for your USB cable (CH340 or CP210x).
+
+**macOS**
+
+1. Open the `.dmg` and drag **uSDX Control** to **Applications**.
+2. The app is not signed, so the first time macOS blocks it. Open it once, then go to **System Settings → Privacy & Security** and click **Open Anyway** (on older macOS: right-click the app → *Open*).
+3. If macOS says the app *“is damaged”*, run `xattr -cr "/Applications/uSDX Control.app"` in Terminal and open it again.
+4. Allow microphone access when asked: the app needs it to hear the radio's sound card.
+
+**Linux (Debian/Ubuntu)**
+
+```sh
+sudo apt install ./usdxcontrol-<version>-linux-amd64.deb
+sudo usermod -aG dialout $USER   # access to the radio's serial port
+```
+
+Log out and back in, then open **uSDX Control** from the applications menu.
+
+**Linux (AppImage)**
+
+```sh
+chmod +x usdxcontrol-<version>-linux-x86_64.AppImage
+sudo usermod -aG dialout $USER   # access to the radio's serial port
+./usdxcontrol-<version>-linux-x86_64.AppImage
+```
+
+Log out and back in once so the `dialout` group applies.
+
+### 3. First steps
+
+Plug in the uSDX over USB, open the app, pick the serial port in the top bar and press **Connect**. The **[getting started tutorial](docs/en/tutorial.md)** takes you from here to your first FT8 QSO.
+
+More: [User manual](docs/en/manual.md) · [Installation details, udev and RTL-SDR](docs/en/installation.md)
 
 ## Screenshots
 
