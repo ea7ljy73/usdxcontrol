@@ -5,15 +5,17 @@ import { resolveDxcc } from '../domain/dxcc'
 import { workedIndex, type WorkedStatus } from '../domain/logbook'
 import { formatSlotUtc } from '../domain/slots'
 import { useDigital } from './useDigital'
+import { useI18n } from '@/i18n/useI18n'
+import { countryName } from '@/i18n/countries'
 
 const formatSnr = (db: number) => (db >= 0 ? `+${String(db).padStart(2, '0')}` : `-${String(-db).padStart(2, '0')}`)
 
 const countryOf = (call: string) => resolveDxcc(call)?.entity ?? null
 
-const WORKED: Record<WorkedStatus, { mark: string; title: string; className: string }> = {
-  'new-country': { mark: '★ ', title: 'País nuevo: nunca trabajado', className: 'text-slice' },
-  'new-call': { mark: '', title: 'Indicativo nuevo', className: 'text-muted' },
-  worked: { mark: '✓ ', title: 'Ya trabajado', className: 'text-muted' },
+const WORKED: Record<WorkedStatus, { mark: string; className: string }> = {
+  'new-country': { mark: '★ ', className: 'text-slice' },
+  'new-call': { mark: '', className: 'text-muted' },
+  worked: { mark: '✓ ', className: 'text-muted' },
 }
 
 type Props = { decodes: DigiDecode[]; testId: string; label: string; compact?: boolean }
@@ -21,6 +23,7 @@ type Props = { decodes: DigiDecode[]; testId: string; label: string; compact?: b
 // Tabla de decodificados de WSJT-X: CQ en verde, lo dirigido a nosotros resaltado en rojo,
 // la estación DX recuadrada y país nuevo con estrella. Clic: DX · doble clic o Intro: contestar.
 export function DecodeTable({ decodes, testId, label, compact = false }: Props) {
+  const { t } = useI18n()
   const { operator, operatorState } = useDigital()
   const myCall = operatorState.settings.myCall
   const worked = useMemo(() => workedIndex(operatorState.logbook, countryOf), [operatorState.logbook])
@@ -44,11 +47,11 @@ export function DecodeTable({ decodes, testId, label, compact = false }: Props) 
             Freq
           </th>
           <th scope="col" className="w-full px-2 py-0.5 font-normal">
-            Mensaje
+            {t('digital.table.message')}
           </th>
           {!compact && (
             <th scope="col" className="hidden px-2 py-0.5 font-normal md:table-cell">
-              País
+              {t('digital.table.country')}
             </th>
           )}
         </tr>
@@ -61,7 +64,8 @@ export function DecodeTable({ decodes, testId, label, compact = false }: Props) 
           const isDx = from !== undefined && from === operatorState.dxCall
           // Como WSJT-X, "trabajado antes" solo se marca en quien llama CQ o nos llama.
           const status = from && (decode.parsed?.kind === 'cq' || toMe) ? worked(from) : null
-          const country = from ? countryOf(from) : null
+          const entity = from ? countryOf(from) : null
+          const country = entity ? countryName(entity) : null
           return (
             <tr
               key={decode.id}
@@ -81,14 +85,14 @@ export function DecodeTable({ decodes, testId, label, compact = false }: Props) 
                 <button
                   type="button"
                   disabled={!from}
-                  title={from ? 'Clic: estación DX · Doble clic o Intro: contestar' : undefined}
+                  title={from ? t('digital.table.rowTitle') : undefined}
                   className="w-full px-2 text-left whitespace-nowrap outline-none hover:bg-white/10 focus-visible:ring-1 focus-visible:ring-slice disabled:cursor-default disabled:hover:bg-transparent"
                   onClick={() => operator.select(decode)}
-                  onDoubleClick={() => operator.answer(decode)}
+                  onDoubleClick={(event) => operator.answer(decode, { moveTx: event.ctrlKey || event.metaKey })}
                   onKeyDown={(event) => {
                     if (event.key === 'Enter') {
                       event.preventDefault()
-                      operator.answer(decode)
+                      operator.answer(decode, { moveTx: event.ctrlKey || event.metaKey })
                     }
                   }}
                 >
@@ -98,7 +102,8 @@ export function DecodeTable({ decodes, testId, label, compact = false }: Props) 
               </td>
               {!compact && (
                 <td
-                  title={status ? WORKED[status].title : undefined}
+                  title={status ? t(`digital.table.worked.${status}`) : undefined}
+
                   className={cn(
                     'hidden max-w-36 truncate px-2 font-sans md:table-cell',
                     status ? WORKED[status].className : 'text-muted',

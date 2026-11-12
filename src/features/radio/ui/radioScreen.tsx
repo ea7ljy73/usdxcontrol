@@ -10,6 +10,8 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { cn } from '@/lib/cn'
+import { useI18n } from '@/i18n/useI18n'
+import { LanguageSwitch } from '@/i18n/languageSwitch'
 import type { SpectrumFeed } from '@/features/spectrum/application/ports'
 import { audioRangeBetween } from '@/features/spectrum/domain/audioMapping'
 import { hasSignal } from '@/features/spectrum/domain/signalDetect'
@@ -64,10 +66,10 @@ const PencilIcon = () => (
   </svg>
 )
 
-const statusLabels = {
-  disconnected: { label: 'Desconectado', tone: 'muted' },
-  connecting: { label: 'Conectando', tone: 'muted' },
-  connected: { label: 'Conectado', tone: 'ok' },
+const statusTones = {
+  disconnected: 'muted',
+  connecting: 'muted',
+  connected: 'ok',
 } as const
 
 const HOLD_DELAY_MS = 350
@@ -80,6 +82,7 @@ const PREVIEW_DEBOUNCE_MS = 200
 const SECTION_TITLE = 'px-3 pt-2 text-[11px] font-semibold tracking-[0.08em] text-muted uppercase'
 
 export function RadioScreen() {
+  const { t } = useI18n()
   const { session, snapshot, linkKind, portSelection, spectrumSimulated, spectrumFeeds } = useRadioSession()
   const audio = useSpectrumFeed(spectrumFeeds.audio)
   const { receiver: digi, receiverState: digiState, operator: digiOperator } = useDigital()
@@ -138,7 +141,8 @@ export function RadioScreen() {
       sdrBandFrom !== null && sdrBandTo !== null ? { fromHz: sdrBandFrom, toHz: sdrBandTo } : null,
     )
   }, [sdr, snapshot.frequency, sdrBandFrom, sdrBandTo])
-  const { label: statusLabel, tone: statusTone } = statusLabels[snapshot.linkStatus]
+  const statusLabel = t(`radio.status.${snapshot.linkStatus}`)
+  const statusTone = statusTones[snapshot.linkStatus]
   const portChoicesAvailable = portSelection !== null && !connected && !connecting
 
   useEffect(() => {
@@ -179,7 +183,7 @@ export function RadioScreen() {
   const hzDraft = () => (draft === '' ? String(snapshot.frequency ?? '') : draft)
   const hzParsed = () => Number.parseInt(hzDraft(), 10)
   const hzInvalid = !Number.isFinite(hzParsed()) || hzParsed() < MIN_FREQUENCY_HZ || hzParsed() > MAX_FREQUENCY_HZ
-  const hzError = hzInvalid ? 'fuera de rango (100 kHz – 60 MHz)' : null
+  const hzError = hzInvalid ? t('radio.freqOutOfRange') : null
 
   const nudge = (sign: 1 | -1) => {
     setScanDirection(0)
@@ -458,12 +462,27 @@ export function RadioScreen() {
   const frequencyText = snapshot.frequency === null ? '---' : formatFrequency(snapshot.frequency)
   const extendedReady = connected && snapshot.extended
 
+  // DIGI Mode del uSDX (menú 029, TX plano para FT8): se enciende al marcar FT8/FT4 y se
+  // apaga al desmarcarlo. Al conectar no se toca lo que tenga puesto la radio.
+  // Solo con firmware ampliado y cuando ya se ha leído.
+  const digiModeOwnedRef = useRef(false)
+  useEffect(() => {
+    if (!extendedReady || snapshot.digiMode === null) return
+    if (digiVisible) {
+      digiModeOwnedRef.current = true
+      if (!snapshot.digiMode) session.setDigiMode(true)
+    } else if (digiModeOwnedRef.current) {
+      digiModeOwnedRef.current = false
+      if (snapshot.digiMode) session.setDigiMode(false)
+    }
+  }, [extendedReady, snapshot.digiMode, digiVisible, session])
+
   return (
     <div className="flex min-h-svh flex-col bg-bg lg:h-svh">
       <header className="flex flex-wrap items-center gap-x-4 gap-y-1.5 border-b border-line bg-chrome px-3 py-1.5">
         <h1 className="text-sm font-semibold">uSDX Control</h1>
 
-        <label className="flex items-center gap-2" title="Volumen de la radio">
+        <label className="flex items-center gap-2" title={t('radio.volumeTitle')}>
           <svg aria-hidden width="20" height="16" viewBox="0 0 18 14" fill="currentColor" className="text-fg">
             <path d="M1 5h3l4-4v12L4 9H1z" />
             <path d="M11 4a4 4 0 0 1 0 6M13 2a7 7 0 0 1 0 10" fill="none" stroke="currentColor" strokeWidth="1.5" />
@@ -471,7 +490,7 @@ export function RadioScreen() {
           <input
             type="range"
             data-testid="volume"
-            aria-label="Volumen"
+            aria-label={t('radio.volume')}
             min={0}
             max={MAX_VOLUME}
             step={1}
@@ -500,14 +519,14 @@ export function RadioScreen() {
           {portChoicesAvailable ? (
             <select
               data-testid="port-select"
-              aria-label="Puerto serie"
+              aria-label={t('radio.serialPort')}
               disabled={ports.length === 0}
               value={selectedPort}
               onChange={(event) => setSelectedPort(event.target.value)}
               className="h-7 w-44 truncate rounded border border-line bg-tile px-2 py-0 text-xs text-fg outline-none focus-visible:ring-2 focus-visible:ring-slice"
             >
               {ports.length === 0 ? (
-                <option value="">Sin puertos serie</option>
+                <option value="">{t('radio.noSerialPorts')}</option>
               ) : (
                 ports.map((port) => (
                   <option key={port.path} value={port.path}>
@@ -517,7 +536,8 @@ export function RadioScreen() {
               )}
             </select>
           ) : null}
-          <span className="hidden text-xs text-muted sm:block">{linkKind}</span>
+          <span className="hidden text-xs text-muted sm:block">{t(`radio.linkKind.${linkKind}`)}</span>
+
           <Badge tone={statusTone} data-testid="connection-status">
             {statusLabel}
           </Badge>
@@ -532,22 +552,23 @@ export function RadioScreen() {
                 connect()
               }
             }}
-            aria-label={connected ? 'Desconectar radio' : 'Conectar radio'}
+            aria-label={connected ? t('radio.disconnectRadio') : t('radio.connectRadio')}
           >
-            {connecting ? 'Conectando' : connected ? 'Desconectar' : 'Conectar'}
+            {connecting ? t('radio.status.connecting') : connected ? t('radio.disconnect') : t('radio.connect')}
           </Button>
           <Button
             data-testid="audio-button"
             variant="navy"
             className="h-7 gap-1.5 rounded-md px-3 text-xs"
-            aria-label={`Sonido: tarjetas de la radio${audioSettings.monitorEnabled ? ', escuchando en el PC' : ''}`}
-            title="Tarjetas de sonido: entrada (RX), salida (TX) y escucha en el PC"
+            aria-label={audioSettings.monitorEnabled ? t('radio.soundAriaMonitoring') : t('radio.soundAria')}
+            title={t('radio.soundTitle')}
             onClick={() => setAudioOpen(true)}
           >
             <span aria-hidden className={cn('size-2 rounded-full', audioSettings.monitorEnabled ? 'bg-rx' : 'bg-dim')} />
-            Sonido
+            {t('radio.sound')}
           </Button>
           <SdrButton />
+          <LanguageSwitch />
           <UtcClock />
         </div>
       </header>
@@ -605,7 +626,7 @@ export function RadioScreen() {
             <div className="flex items-stretch gap-1">
               <Button variant="tile"
                 className="w-12 text-lg sm:w-16"
-                aria-label="Retroceder diez pasos"
+                aria-label={t('radio.tenStepsDown')}
                 disabled={!connected}
                 onClick={() => nudgeLarge(-1)}
               >
@@ -613,7 +634,7 @@ export function RadioScreen() {
               </Button>
               <Button variant="tile"
                 className="w-12 text-lg sm:w-16"
-                aria-label="Bajar frecuencia"
+                aria-label={t('radio.freqDown')}
                 disabled={!connected}
                 onPointerDown={startHold(-1)}
                 onPointerUp={endHold}
@@ -664,7 +685,7 @@ export function RadioScreen() {
                       <input
                         data-testid="freq-hz"
                         inputMode="numeric"
-                        aria-label="Frecuencia en hercios"
+                        aria-label={t('radio.freqHz')}
                         aria-invalid={hzError !== null}
                         className={cn(
                           'w-24 bg-transparent text-center text-sm tabular-nums outline-none',
@@ -702,9 +723,9 @@ export function RadioScreen() {
                       data-testid="vfo-frequency"
                       role="button"
                       tabIndex={connected ? 0 : -1}
-                      aria-label={`Frecuencia VFO ${
-                        snapshot.frequency === null ? 'no conectado' : formatFrequency(snapshot.frequency)
-                      }, arrastrar o cursores para sintonizar`}
+                      aria-label={t('radio.vfoDialAria', {
+                        freq: snapshot.frequency === null ? t('radio.notConnected') : formatFrequency(snapshot.frequency),
+                      })}
                       onPointerDown={onDialPointerDown}
                       onPointerMove={onDialPointerMove}
                       onPointerUp={onDialPointerUp}
@@ -736,7 +757,7 @@ export function RadioScreen() {
               </div>
               <Button variant="tile"
                 className="w-12 text-lg sm:w-16"
-                aria-label="Subir frecuencia"
+                aria-label={t('radio.freqUp')}
                 disabled={!connected}
                 onPointerDown={startHold(1)}
                 onPointerUp={endHold}
@@ -748,7 +769,7 @@ export function RadioScreen() {
               </Button>
               <Button variant="tile"
                 className="w-12 text-lg sm:w-16"
-                aria-label="Avanzar diez pasos"
+                aria-label={t('radio.tenStepsUp')}
                 disabled={!connected}
                 onClick={() => nudgeLarge(1)}
               >
@@ -756,17 +777,17 @@ export function RadioScreen() {
               </Button>
             </div>
 
-            <div className="grid grid-cols-3 gap-1 sm:grid-cols-6" role="group" aria-label="Paso y búsqueda">
+            <div className="grid grid-cols-3 gap-1 sm:grid-cols-6" role="group" aria-label={t('radio.stepAndScan')}>
               <Button variant="tile"
                 data-testid="tuning-step"
-                aria-label={`Paso de sintonía ${formatStep(step)}, clic para cambiar`}
-                title="Paso de sintonía"
+                aria-label={t('radio.tuningStepAria', { step: formatStep(step) })}
+                title={t('radio.tuningStep')}
                 onClick={() => setStepIndex(nextStepIndex(stepIndex))}
               >
                 {formatStep(step)}
               </Button>
               <Button variant="tile"
-                                aria-label="Scan hacia abajo"
+                aria-label={t('radio.scanDown')}
                 aria-pressed={scanDirection === -1}
                 disabled={!connected}
                 className="gap-1.5"
@@ -776,7 +797,7 @@ export function RadioScreen() {
                 Scan
               </Button>
               <Button variant="tile"
-                                aria-label="Scan hacia arriba"
+                aria-label={t('radio.scanUp')}
                 aria-pressed={scanDirection === 1}
                 disabled={!connected}
                 className="gap-1.5"
@@ -785,15 +806,15 @@ export function RadioScreen() {
                 <ScanUpIcon />
                 Scan
               </Button>
-              <Button variant="tile" aria-label="Editar frecuencia" title="Editar frecuencia" disabled={!connected} onClick={startEditing}>
+              <Button variant="tile" aria-label={t('radio.editFreq')} title={t('radio.editFreq')} disabled={!connected} onClick={startEditing}>
                 <PencilIcon />
               </Button>
-              <Button variant="tile" aria-label="RIT 0, borrar RIT" disabled={!connected} onClick={() => session.clearRit()}>
+              <Button variant="tile" aria-label={t('radio.ritClear')} disabled={!connected} onClick={() => session.clearRit()}>
                 RIT 0
               </Button>
               <Button variant="tile"
                 data-testid="vfo-swap"
-                aria-label="A ⇄ B, intercambiar VFO A y B"
+                aria-label={t('radio.vfoSwap')}
                 disabled={!connected}
                 onClick={() => switchVfo(activeVfo === 'A' ? 'B' : 'A')}
               >
@@ -804,7 +825,7 @@ export function RadioScreen() {
         </main>
 
         <aside
-          aria-label="Controles de radio"
+          aria-label={t('radio.controls')}
           className="flex flex-col divide-y divide-line border-t border-line bg-panel lg:w-80 lg:overflow-y-auto lg:border-t-0 lg:border-l"
         >
           <section aria-labelledby="rc-meter" className="bg-panel">
@@ -817,12 +838,12 @@ export function RadioScreen() {
                 <button
                   type="button"
                   data-testid="meter-rate"
-                  title="Cada lectura del S-métrico se oye como un chasquido en el uSDX"
-                  aria-label={`Refresco ${meterRate.label}: cada ${meterRate.ms / 1000} s, clic para cambiar`}
+                  title={t('radio.meterRateTitle')}
+                  aria-label={t('radio.meterRateAria', { rate: t(`radio.meterRate.${meterRate.id}`), seconds: meterRate.ms / 1000 })}
                   onClick={() => setRadioView((view) => ({ ...view, meterRate: nextMeterRate(meterRate.id) }))}
                   className="mr-auto ml-2 rounded px-1.5 text-[11px] text-muted hover:bg-white/10 hover:text-fg focus-visible:ring-2 focus-visible:ring-slice focus-visible:outline-none"
                 >
-                  Refresco {meterRate.label}
+                  {t('radio.meterRateLabel', { rate: t(`radio.meterRate.${meterRate.id}`) })}
                 </button>
                 <span className="text-sm text-fg tabular-nums">
                   {snapshot.meter !== null ? `${sUnitLabel(snapshot.meter)}${snapshot.tx ? ' · TX' : ''}` : '--'}
@@ -832,7 +853,7 @@ export function RadioScreen() {
                 <div
                   data-testid="s-meter"
                   role="meter"
-                  aria-label={`S-métrico ${sUnitLabel(snapshot.meter)}`}
+                  aria-label={t('radio.sMeterAria', { value: sUnitLabel(snapshot.meter) })}
                   aria-valuemin={0}
                   aria-valuemax={100}
                   aria-valuenow={meterPercent(snapshot.meter)}
@@ -871,7 +892,7 @@ export function RadioScreen() {
                 </span>
                 <span className="text-sm text-fg">Audio</span>
                 <span className="ml-auto text-xs text-muted">
-                  {spectrumView.audioScope ? (spectrumSimulated ? 'simulado' : 'tarjeta de sonido') : 'mostrar espectro'}
+                  {spectrumView.audioScope ? (spectrumSimulated ? t('radio.simulated') : t('radio.soundCard')) : t('radio.showSpectrum')}
                 </span>
               </button>
               {spectrumView.audioScope && (
@@ -880,7 +901,7 @@ export function RadioScreen() {
                 </div>
               )}
             </div>
-            <div className="flex flex-col gap-1.5 px-2 pb-2" role="group" aria-label="Ajustes de recepción">
+            <div className="flex flex-col gap-1.5 px-2 pb-2" role="group" aria-label={t('radio.rxSettings')}>
               <div className="flex items-center gap-2">
                 <label className="flex flex-1 items-center gap-2 text-sm text-fg">
                   AGC
@@ -895,6 +916,7 @@ export function RadioScreen() {
                     {AGC_LEVELS.map((name, level) => (
                       <option key={name} value={level}>
                         {name}
+
                       </option>
                     ))}
                   </select>
@@ -902,16 +924,16 @@ export function RadioScreen() {
                 <Button
                   data-testid="nr"
                   variant={(snapshot.nr ?? 0) > 0 ? 'navy' : 'tile'}
-                  aria-label={`NR ${(snapshot.nr ?? 0).toString()} · reducción de ruido, clic para subir`}
+                  aria-label={t('radio.nrAria', { level: (snapshot.nr ?? 0).toString() })}
                   disabled={!extendedReady}
                   className="h-9 w-24"
-                  title="Reducción de ruido"
+                  title={t('radio.noiseReduction')}
                   onClick={() => session.setNr(nextNr(snapshot.nr))}
                 >
                   NR {(snapshot.nr ?? 0).toString()}
                 </Button>
               </div>
-              {!snapshot.extended && <p className="text-xs text-fg">Volumen, AGC y NR: firmware v2.2.0 o posterior</p>}
+              {!snapshot.extended && <p className="text-xs text-fg">{t('radio.needsExtendedFirmware')}</p>}
             </div>
           </section>
 
@@ -919,7 +941,7 @@ export function RadioScreen() {
             <h2 id="rc-band" className={SECTION_TITLE}>
               Band
             </h2>
-            <div className="grid grid-cols-5 gap-1 px-2 pt-1 pb-2" role="group" aria-label="Bandas">
+            <div className="grid grid-cols-5 gap-1 px-2 pt-1 pb-2" role="group" aria-label={t('radio.bands')}>
               {BANDS.map((entry) => {
                 const active = band?.id === entry.id
                 return (
@@ -927,7 +949,7 @@ export function RadioScreen() {
                     key={entry.id}
                     variant={active ? 'navy' : 'tile'}
                     data-testid={`band-${entry.id}`}
-                    aria-label={`Banda ${entry.label}, ${formatFrequency(entry.defaultFreqHz)}, clic para saltar`}
+                    aria-label={t('radio.bandAria', { band: entry.label, freq: formatFrequency(entry.defaultFreqHz) })}
                     aria-pressed={active}
                     disabled={!connected}
                     className="h-9 px-1"
@@ -950,16 +972,16 @@ export function RadioScreen() {
                 value={snapshot.mode ?? ''}
                 onValueChange={setMode}
                 disabled={!connected}
-                aria-label="Modo"
+                aria-label={t('radio.mode')}
                 className="flex-[5] grid-cols-5"
               >
                 {RADIO_MODES.map((mode) => (
-                  <ToggleGroupItem key={mode} value={mode} aria-label={`Modo ${mode}`}>
+                  <ToggleGroupItem key={mode} value={mode} aria-label={t('radio.modeAria', { mode })}>
                     {mode}
                   </ToggleGroupItem>
                 ))}
               </ToggleGroup>
-              <div className="grid flex-[2] grid-cols-2 gap-1" role="group" aria-label="Modos digitales">
+              <div className="grid flex-[2] grid-cols-2 gap-1" role="group" aria-label={t('radio.digiModes')}>
                 {DIGI_MODES.map((mode) => {
                   const active = digiVisible && digiState.mode === mode
                   return (
@@ -1000,7 +1022,7 @@ export function RadioScreen() {
                   </span>
                 )
                 return isActive ? (
-                  <div key={tag} aria-label={`Receptor VFO ${tag}`} className="flex h-9 items-center gap-3 rounded border border-line bg-instrument px-3">
+                  <div key={tag} aria-label={t('radio.vfoReceiver', { tag })} className="flex h-9 items-center gap-3 rounded border border-line bg-instrument px-3">
                     {badge}
                     <span className="ml-auto text-xl font-light tabular-nums">
                       {snapshot.frequency === null ? '---' : formatFrequency(shown)}
@@ -1011,7 +1033,7 @@ export function RadioScreen() {
                     key={tag}
                     variant="tile"
                     data-testid={`vfo-${tag.toLowerCase()}`}
-                    aria-label={`VFO ${tag} ${formatFrequency(shown)}, clic para activar`}
+                    aria-label={t('radio.vfoActivate', { tag, freq: formatFrequency(shown) })}
                     disabled={!connected}
                     className="h-9 justify-start gap-3"
                     onClick={() => switchVfo(tag)}
@@ -1032,7 +1054,7 @@ export function RadioScreen() {
                 data-testid="ptt"
                 variant={snapshot.tx ? 'tx' : 'navy'}
                 aria-pressed={snapshot.tx}
-                title="Mantener pulsado para transmitir"
+                title={t('radio.pttTitle')}
                 disabled={!connected}
                 onPointerDown={onPttPointerDown}
                 onPointerUp={pttRelease}
@@ -1045,7 +1067,8 @@ export function RadioScreen() {
                 {snapshot.tx ? 'TX' : 'PTT'}
               </Button>
               <p aria-hidden className="mt-auto text-center text-xs text-fg">
-                ↑/↓ sintonizar · [ ] paso · m modo · espacio PTT · rueda sobre el espectro
+                {t('radio.shortcuts')}
+
               </p>
             </div>
           </section>

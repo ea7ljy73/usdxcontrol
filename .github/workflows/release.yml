@@ -56,6 +56,7 @@ jobs:
           else
             echo "value=0.0.0-dev.${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
           fi
+      - run: pnpm licenses:third-party
       - run: pnpm build:desktop
       - name: Instaladores
         shell: bash
@@ -86,3 +87,5 @@ jobs:
         with:
           files: instaladores/*
           generate_release_notes: true
+          # v0.2.0-beta.1, v1.0.0-rc.1…: se marcan como versión preliminar, no como la última estable.
+          prerelease: ${{ contains(github.ref_name, '-') }}

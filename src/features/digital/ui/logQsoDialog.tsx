@@ -5,16 +5,18 @@ import { Field, TextInput } from '@/components/ui/field'
 import type { LogDraft } from '../application/ft8Operator'
 import { rfMhz } from '../domain/logbook'
 import { useDigital } from './useDigital'
+import { useI18n } from '@/i18n/useI18n'
 
 // Confirmación del QSO antes de guardarlo (se abre sola al terminar la secuencia).
 export function LogQsoDialog() {
+  const { t } = useI18n()
   const { operator, operatorState } = useDigital()
   const draft = operatorState.logDraft
   return (
     <Dialog
       open={draft !== null}
       onOpenChange={(open) => !open && operator.discardLog()}
-      title="Guardar QSO"
+      title={t('digital.log.title')}
       description={draft ? `${draft.mode} · ${rfMhz(draft)} MHz` : undefined}
     >
       {draft && <LogForm key={`${draft.endedAt}-${draft.call}`} draft={draft} />}
@@ -23,6 +25,7 @@ export function LogQsoDialog() {
 }
 
 function LogForm({ draft }: { draft: LogDraft }) {
+  const { t } = useI18n()
   const { operator } = useDigital()
   const [form, setForm] = useState(draft)
   const set = (patch: Partial<LogDraft>) => setForm((current) => ({ ...current, ...patch }))
@@ -35,7 +38,7 @@ function LogForm({ draft }: { draft: LogDraft }) {
         if (form.call.trim()) operator.saveLog(form)
       }}
     >
-      <Field label="Indicativo">
+      <Field label={t('digital.log.call')}>
         <TextInput
           required
           className="font-mono uppercase"
@@ -43,34 +46,35 @@ function LogForm({ draft }: { draft: LogDraft }) {
           onChange={(event) => set({ call: event.target.value.toUpperCase() })}
         />
       </Field>
-      <Field label="Locator">
+      <Field label={t('digital.log.grid')}>
         <TextInput
           className="font-mono uppercase"
           value={form.grid}
           onChange={(event) => set({ grid: event.target.value.toUpperCase() })}
         />
       </Field>
-      <Field label="Reporte enviado">
+      <Field label={t('digital.log.rstSent')}>
         <TextInput className="font-mono" value={form.rstSent} onChange={(event) => set({ rstSent: event.target.value })} />
       </Field>
-      <Field label="Reporte recibido">
+      <Field label={t('digital.log.rstRcvd')}>
         <TextInput className="font-mono" value={form.rstRcvd} onChange={(event) => set({ rstRcvd: event.target.value })} />
       </Field>
-      <Field label="Inicio (UTC)">
+      <Field label={t('digital.log.start')}>
         <TextInput className="font-mono" readOnly value={form.startedAt.slice(0, 19).replace('T', ' ')} />
       </Field>
-      <Field label="Fin (UTC)">
+      <Field label={t('digital.log.end')}>
         <TextInput className="font-mono" readOnly value={form.endedAt.slice(0, 19).replace('T', ' ')} />
       </Field>
-      <Field label="Notas" className="col-span-2">
+      <Field label={t('digital.log.notes')} className="col-span-2">
         <TextInput value={form.notes} onChange={(event) => set({ notes: event.target.value })} />
       </Field>
       <div className="col-span-2 flex justify-end gap-1 pt-1">
         <Button variant="tile" className="h-8 text-xs" onClick={operator.discardLog}>
-          Descartar
+          {t('digital.log.discard')}
         </Button>
         <Button type="submit" variant="navy" className="h-8 text-xs">
-          Guardar en el libro
+          {t('digital.log.save')}
+
         </Button>
       </div>
     </form>

@@ -16,7 +16,12 @@ export type RadioSnapshot = {
   volume: number | null
   agc: number | null
   nr: number | null
+  // DIGI Mode del firmware (menú 029, TX plano para FT8); null si no se sabe.
+  digiMode: boolean | null
 }
+
+// Número de menú (el de la LCD) de DIGI Mode en el firmware ampliado.
+export const MENU_DIGI_MODE = 29
 
 type Intent<T> = { value: T; sentAt: number }
 
@@ -59,6 +64,7 @@ export const createRadioSession = (link: RadioLink, options: Options = {}) => {
   let volume: number | null = null
   let agc: number | null = null
   let nr: number | null = null
+  let digiMode: boolean | null = null
   let intentFrequency: Intent<Frequency> | null = null
   let intentMode: Intent<RadioMode> | null = null
   let lastError: string | null = null
@@ -88,6 +94,7 @@ export const createRadioSession = (link: RadioLink, options: Options = {}) => {
     volume,
     agc,
     nr,
+    digiMode,
   }
 
   const getSnapshot = (): RadioSnapshot => cachedSnapshot
@@ -111,6 +118,7 @@ export const createRadioSession = (link: RadioLink, options: Options = {}) => {
       volume,
       agc,
       nr,
+      digiMode,
     }
     listeners.forEach((listener) => listener(cachedSnapshot))
   }
@@ -188,10 +196,15 @@ export const createRadioSession = (link: RadioLink, options: Options = {}) => {
         emit()
         break
       case 'menu':
+        if (response.item === MENU_DIGI_MODE) {
+          digiMode = response.value === 1
+          emit()
+          break
+        }
         if (response.item !== 0) break
         if (!extended) {
           extended = true
-          queue.push({ kind: 'agc-get' }, { kind: 'nr-get' })
+          queue.push({ kind: 'agc-get' }, { kind: 'nr-get' }, { kind: 'menu-get', item: MENU_DIGI_MODE })
         }
         // −1 es el volumen apagado del menú: en la app, 0.
         volume = Math.max(0, response.value)
@@ -329,6 +342,7 @@ export const createRadioSession = (link: RadioLink, options: Options = {}) => {
     volume = null
     agc = null
     nr = null
+    digiMode = null
     linkStatus = 'disconnected'
     void link.close()
     emit()
@@ -367,6 +381,16 @@ export const createRadioSession = (link: RadioLink, options: Options = {}) => {
     nr = value
     enqueue({ kind: 'nr-set', nr: value })
     enqueue({ kind: 'nr-get' })
+    emit()
+  }
+
+  // DIGI Mode se acepta también en TX (el firmware solo rechaza lo que toca la RF).
+  const setDigiMode = (on: boolean) => {
+    if (!extended || linkStatus === 'disconnected') return
+    touch()
+    digiMode = on
+    enqueue({ kind: 'menu-set', item: MENU_DIGI_MODE, value: on ? 1 : 0 })
+    enqueue({ kind: 'menu-get', item: MENU_DIGI_MODE })
     emit()
   }
 
@@ -417,6 +441,7 @@ export const createRadioSession = (link: RadioLink, options: Options = {}) => {
     setVolume,
     setAgc,
     setNr,
+    setDigiMode,
     setMeterInterval,
     subscribe(listener: (snapshot: RadioSnapshot) => void) {
       listeners.add(listener)

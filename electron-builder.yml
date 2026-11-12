@@ -6,6 +6,12 @@ directories:
   output: dist-instalador
 files:
   - out/**
+# Licencia de la app y avisos de ft8_lib, KISS FFT y las dependencias empaquetadas.
+extraResources:
+  - from: LICENSE
+    to: LICENSE.txt
+  - from: THIRD_PARTY_LICENSES.txt
+    to: THIRD_PARTY_LICENSES.txt
 asar: true
 asarUnpack:
   - node_modules/@serialport/**/prebuilds/**

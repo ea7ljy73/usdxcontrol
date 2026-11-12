@@ -15,5 +15,5 @@
     "noFallthroughCasesInSwitch": true,
     "strict": true
   },
-  "include": ["src/main", "src/preload"]
+  "include": ["src/main", "src/preload", "src/i18n/i18n.ts", "src/i18n/messages"]
 }

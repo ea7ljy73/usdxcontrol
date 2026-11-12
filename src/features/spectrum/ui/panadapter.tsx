@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from 'react'
 import { cn } from '@/lib/cn'
+import { useI18n } from '@/i18n/useI18n'
 import { Button } from '@/components/ui/button'
 import {
   intensityColor,
@@ -56,11 +57,7 @@ export type PassbandHz = { lowHz: number; highHz: number }
 // Trazo del espectro, como en otros programas SDR: relleno con degradado (SDR#),
 // solo la línea (GQRX sin relleno) o línea con un relleno tenue (SDR++).
 export type SpectrumTrace = 'relleno' | 'linea' | 'suave'
-const TRACES: { id: SpectrumTrace; label: string; name: string }[] = [
-  { id: 'relleno', label: 'Relleno', name: 'relleno con degradado' },
-  { id: 'linea', label: 'Línea', name: 'solo línea' },
-  { id: 'suave', label: 'Suave', name: 'línea con relleno tenue' },
-]
+const TRACES: SpectrumTrace[] = ['relleno', 'linea', 'suave']
 
 type Props = {
   disabled?: boolean
@@ -137,6 +134,7 @@ export function Panadapter({
   trace = 'relleno',
   onTraceChange,
 }: Props) {
+  const { t } = useI18n()
   const spectrumRef = useRef<HTMLCanvasElement | null>(null)
   const waterfallRef = useRef<HTMLCanvasElement | null>(null)
   const rowRef = useRef<ImageData | null>(null)
@@ -496,7 +494,7 @@ export function Panadapter({
     return () => overlay.removeEventListener('wheel', handler)
   }, [disabled, onWheelTune])
 
-  const traceOption = TRACES.find((option) => option.id === trace) ?? TRACES[0]
+  const traceOption = TRACES.includes(trace) ? trace : TRACES[0]
   const audioActive = feedState === 'on'
   const waterfallLabels: number[] = []
   for (let seconds = WATERFALL_LABEL_EVERY_S; seconds * WATERFALL_ROWS_PER_S < waterfallCssHeight - 8; seconds += WATERFALL_LABEL_EVERY_S) {
@@ -595,11 +593,7 @@ export function Panadapter({
           style={{ top: waterfallTop }}
         >
           <span className="bg-instrument/70 px-3 py-1 text-xs font-medium text-fg">
-            {disabled
-              ? 'Sin radio conectada · pulsa Conectar'
-              : feedState === 'error'
-                ? 'No se pudo capturar el audio de la tarjeta de sonido'
-                : 'Pulsa AUDIO para ver el espectro'}
+            {disabled ? t('spectrum.noRadio') : feedState === 'error' ? t('spectrum.captureFailed') : t('spectrum.pressAudio')}
           </span>
         </div>
       )}
@@ -608,7 +602,7 @@ export function Panadapter({
         type="button"
         ref={overlayRef}
         data-testid="spectrum-tune"
-        aria-label="Sintonizar en el espectro; doble clic o Intro fija el dial para moverlo con los cursores"
+        aria-label={t('spectrum.tuneAria')}
         aria-pressed={selected}
         disabled={disabled}
         onClick={handleTune}
@@ -654,7 +648,7 @@ export function Panadapter({
           data-testid="spectrum-source"
           className={cn('pointer-events-none absolute top-1.5 right-14 z-10 text-xs font-medium', sdr.muted ? 'text-tx' : 'text-rx')}
         >
-          {sdr.muted ? 'SDR en pausa · TX' : simulated ? 'SDR simulado' : 'SDR'}
+          {sdr.muted ? t('spectrum.sdrPaused') : simulated ? t('spectrum.sdrSimulated') : 'SDR'}
         </span>
       ) : (
         (audioActive || feedState === 'error') && (
@@ -665,15 +659,15 @@ export function Panadapter({
               audioActive ? 'text-rx' : 'text-tx',
             )}
           >
-            {audioActive ? (simulated ? 'audio simulado' : 'audio') : 'sin audio'}
+            {audioActive ? (simulated ? t('spectrum.audioSimulated') : t('spectrum.audio')) : t('spectrum.noAudio')}
           </span>
         )
       )}
 
-      <nav aria-label="Menú del panadaptador" className="absolute top-1 left-1 z-20 flex w-16 flex-col gap-1">
+      <nav aria-label={t('spectrum.menu')} className="absolute top-1 left-1 z-20 flex w-16 flex-col gap-1">
         <Button
           variant="ghost"
-          aria-label={menuOpen ? 'Ocultar menú' : 'Mostrar menú'}
+          aria-label={menuOpen ? t('spectrum.hideMenu') : t('spectrum.showMenu')}
           aria-expanded={menuOpen}
           onClick={() => setMenuOpen((open) => !open)}
           className="h-8 w-9 border border-line bg-chrome/85 px-0 text-fg backdrop-blur-sm hover:bg-tile hover:text-fg"
@@ -685,7 +679,7 @@ export function Panadapter({
             <Button
               variant="tile"
               className={cn('h-10 w-full px-0 text-sm', audioActive && 'text-rx')}
-              aria-label={audioActive ? 'Desconectar audio' : 'Conectar audio'}
+              aria-label={audioActive ? t('spectrum.audioOff') : t('spectrum.audioOn')}
               onClick={onToggleAudio}
             >
               Audio
@@ -694,29 +688,30 @@ export function Panadapter({
               data-testid="dial-lock"
               variant="tile"
               className="h-10 w-full px-0 text-sm"
-              aria-label={locked ? 'Soltar dial' : 'Fijar dial, mover con los cursores'}
+              aria-label={locked ? t('spectrum.unlockAria') : t('spectrum.lockAria')}
               aria-pressed={locked}
               disabled={disabled}
               onClick={toggleLock}
             >
-              {locked ? 'Soltar' : 'Fijar'}
+              {locked ? t('spectrum.unlock') : t('spectrum.lock')}
             </Button>
             {onTraceChange && (
               <Button
                 data-testid="spectrum-trace"
                 variant="tile"
                 className="h-10 w-full px-0 text-sm"
-                aria-label={`Espectro: ${traceOption.name}, clic para cambiar`}
-                onClick={() => onTraceChange(TRACES[(TRACES.indexOf(traceOption) + 1) % TRACES.length].id)}
+                aria-label={t('spectrum.traceAria', { name: t(`spectrum.trace.${traceOption}.name`) })}
+                onClick={() => onTraceChange(TRACES[(TRACES.indexOf(traceOption) + 1) % TRACES.length])}
               >
-                {traceOption.label}
+                {t(`spectrum.trace.${traceOption}.label`)}
               </Button>
             )}
             <Button
               data-testid="spectrum-zoom"
               variant="tile"
               className="h-10 w-full px-0 text-sm"
-              aria-label={`${option.label}, ancho del panadaptador, clic para cambiar`}
+              aria-label={t('spectrum.zoomAria', { label: option.label })}
+
               onClick={cycleZoom}
             >
               {option.label}

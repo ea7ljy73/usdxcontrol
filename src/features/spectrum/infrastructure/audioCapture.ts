@@ -1,3 +1,4 @@
+import { t } from '@/i18n/i18n'
 import type { SpectrumFeed } from '../application/ports'
 
 const AUDIO_CONSTRAINTS: MediaTrackConstraints = {
@@ -12,7 +13,8 @@ const FRAME_MS = 15
 
 export const startAudioCapture = async (): Promise<SpectrumFeed> => {
   if (!navigator.mediaDevices?.getUserMedia) {
-    throw new Error('La captura de audio no está disponible en este navegador')
+    throw new Error(t('errors.audio.captureUnavailable'))
+
   }
   const stream = await navigator.mediaDevices.getUserMedia({ audio: AUDIO_CONSTRAINTS })
   const context = new AudioContext()

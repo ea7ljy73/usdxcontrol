@@ -1,3 +1,4 @@
+import { t } from '@/i18n/i18n'
 import type { DigiTransmitter, TxHandle } from '../../application/ports'
 import { isEncodableMessage } from '../../domain/messages'
 import type { SimulatedBand } from './simulatedBand'
@@ -10,7 +11,8 @@ export const createSimulatedTransmitter = (loadBand: () => Promise<SimulatedBand
   let onAir = false
   return {
     async transmit({ message, startAtMs }): Promise<TxHandle> {
-      if (!isEncodableMessage(message)) throw new Error('mensaje no válido para FT8')
+      if (!isEncodableMessage(message)) throw new Error(t('errors.invalidMessage', { mode: 'FT8' }))
+
       const band = await loadBand()
       const timers: ReturnType<typeof setTimeout>[] = []
       let finish: () => void = () => undefined

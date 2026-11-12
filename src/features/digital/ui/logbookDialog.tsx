@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
 import { rfMhz } from '../domain/logbook'
 import { useDigital } from './useDigital'
+import { useI18n } from '@/i18n/useI18n'
 
 type Props = { open: boolean; onOpenChange: (open: boolean) => void }
 
@@ -10,6 +11,7 @@ const utc = (iso: string) => `${iso.slice(0, 10)} ${iso.slice(11, 16)}`
 
 // Libro de guardia local con exportación e importación ADIF.
 export function LogbookDialog({ open, onOpenChange }: Props) {
+  const { t } = useI18n()
   const { operator, operatorState, logFiles } = useDigital()
   const fileRef = useRef<HTMLInputElement | null>(null)
   const { logbook, settings } = operatorState
@@ -19,12 +21,12 @@ export function LogbookDialog({ open, onOpenChange }: Props) {
     try {
       operator.importLog(await logFiles.importAdif(file, settings.myCall))
     } catch (cause) {
-      operator.notify(`No se pudo leer el ADIF: ${cause instanceof Error ? cause.message : String(cause)}`, 'error')
+      operator.notify(t('digital.logbook.importFailed', { error: cause instanceof Error ? cause.message : String(cause) }), 'error')
     }
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange} title={`Libro de guardia · ${logbook.length} QSO`} className="max-w-4xl">
+    <Dialog open={open} onOpenChange={onOpenChange} title={t('digital.logbook.title', { count: logbook.length })} className="max-w-4xl">
       <div className="flex flex-col gap-2">
         <div className="flex flex-wrap gap-1">
           <Button
@@ -33,17 +35,17 @@ export function LogbookDialog({ open, onOpenChange }: Props) {
             disabled={logbook.length === 0}
             onClick={() => logFiles.exportAdif(logbook, settings.myCall)}
           >
-            Exportar ADIF
+            {t('digital.logbook.export')}
           </Button>
           <Button variant="tile" className="h-8 px-3 text-xs" onClick={() => fileRef.current?.click()}>
-            Importar ADIF…
+            {t('digital.logbook.import')}
           </Button>
           <input
             ref={fileRef}
             type="file"
             accept=".adi,.adif,text/plain"
             className="hidden"
-            aria-label="Fichero ADIF"
+            aria-label={t('digital.logbook.file')}
             onChange={(event) => {
               void importFile(event.target.files?.[0])
               event.target.value = ''
@@ -51,22 +53,22 @@ export function LogbookDialog({ open, onOpenChange }: Props) {
           />
         </div>
         {logbook.length === 0 ? (
-          <p className="py-6 text-center text-sm text-muted">Todavía no hay QSO en el libro.</p>
+          <p className="py-6 text-center text-sm text-muted">{t('digital.logbook.empty')}</p>
         ) : (
           <div className="overflow-x-auto">
             <table data-testid="digi-logbook" className="w-full font-mono text-xs">
               <thead className="text-left text-muted">
                 <tr>
                   <th className="px-1.5 py-1 font-normal">UTC</th>
-                  <th className="px-1.5 py-1 font-normal">Indicativo</th>
-                  <th className="px-1.5 py-1 font-normal">Locator</th>
+                  <th className="px-1.5 py-1 font-normal">{t('digital.log.call')}</th>
+                  <th className="px-1.5 py-1 font-normal">{t('digital.log.grid')}</th>
                   <th className="px-1.5 py-1 font-normal">MHz</th>
-                  <th className="px-1.5 py-1 font-normal">Modo</th>
-                  <th className="px-1.5 py-1 font-normal">Env</th>
-                  <th className="px-1.5 py-1 font-normal">Rec</th>
-                  <th className="px-1.5 py-1 font-normal">Notas</th>
+                  <th className="px-1.5 py-1 font-normal">{t('digital.logbook.mode')}</th>
+                  <th className="px-1.5 py-1 font-normal">{t('digital.logbook.sent')}</th>
+                  <th className="px-1.5 py-1 font-normal">{t('digital.logbook.rcvd')}</th>
+                  <th className="px-1.5 py-1 font-normal">{t('digital.log.notes')}</th>
                   <th className="px-1.5 py-1 font-normal">
-                    <span className="sr-only">Acciones</span>
+                    <span className="sr-only">{t('digital.logbook.actions')}</span>
                   </th>
                 </tr>
               </thead>
@@ -84,7 +86,8 @@ export function LogbookDialog({ open, onOpenChange }: Props) {
                     <td className="px-1.5 py-1 text-right">
                       <button
                         type="button"
-                        aria-label={`Borrar QSO con ${entry.call}`}
+                        aria-label={t('digital.logbook.delete', { call: entry.call })}
+
                         className="px-1 text-muted hover:text-tx"
                         onClick={() => operator.deleteLogEntry(entry.id)}
                       >

@@ -1,4 +1,5 @@
 import { createContext, useContext } from 'react'
+import { getLocale, subscribeLocale, t } from '@/i18n/i18n'
 import { createRadioSession } from '@/features/radio/application/radioSession'
 import { audioViewFor } from '@/features/radio/domain/passband'
 import type { SerialPortChoice } from '@/features/radio/application/ports'
@@ -33,9 +34,11 @@ export type PortSelection = { list(): Promise<SerialPortChoice[]> }
 // rf: espectro de un SDR en otro puerto; null hasta que exista un adaptador.
 export type SpectrumFeeds = { audio: SpectrumFeedFactory; rf: SpectrumFeedFactory | null }
 
+export type LinkKind = 'mock' | 'electron' | 'webserial'
+
 type Container = {
   session: ReturnType<typeof createRadioSession>
-  linkKind: string
+  linkKind: LinkKind
   portSelection: PortSelection | null
   spectrumSimulated: boolean
   spectrumFeeds: SpectrumFeeds
@@ -125,8 +128,8 @@ const digital: Digital = {
   devices: useMock
     ? {
         list: async () => ({
-          inputs: [{ id: 'sim-in', label: 'Radio simulada (entrada)' }],
-          outputs: [{ id: 'sim-out', label: 'Radio simulada (salida)' }],
+          inputs: [{ id: 'sim-in', label: t('audio.simInput') }],
+          outputs: [{ id: 'sim-out', label: t('audio.simOutput') }],
         }),
       }
     : mediaDeviceList,
@@ -160,7 +163,8 @@ session.subscribe((snapshot) => sdr.setTx(snapshot.tx))
 
 const container: Container = {
   session,
-  linkKind: useMock ? 'CAT simulado' : bridgeApi ? 'Electron · serialport' : 'WebSerial',
+  linkKind: useMock ? 'mock' : bridgeApi ? 'electron' : 'webserial',
+
   portSelection,
   spectrumSimulated: useMock,
   spectrumFeeds: {
@@ -181,4 +185,11 @@ export const useContainer = (): Container => {
   const value = useContext(ContainerContext)
   if (value === null) throw new Error('useContainer requiere ContainerProvider')
   return value
+}
+
+// En escritorio, los errores del proceso principal (puerto serie, rtl_tcp) salen en el idioma de la interfaz.
+if (bridgeApi?.setLocale) {
+  const sync = () => bridgeApi.setLocale?.(getLocale())
+  sync()
+  subscribeLocale(sync)
 }

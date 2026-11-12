@@ -1,3 +1,4 @@
+import { t } from '../i18n/i18n.js'
 import { ipcMain } from 'electron'
 import { SerialPort, type SerialPort as SerialPortInstance } from 'serialport'
 
@@ -30,14 +31,14 @@ export function registerRadioIpc(emit: Emit) {
       typeof options?.baudRate === 'number' && Number.isFinite(options.baudRate) && options.baudRate > 0
         ? options.baudRate
         : 38_400
-    if (baudRate > 4_000_000) throw new Error('Baud rate fuera de rango')
+    if (baudRate > 4_000_000) throw new Error(t('errors.main.baudRate'))
     let targetPath: string
     if (isValidPath(options?.path)) {
       targetPath = options.path
     } else {
       const ports = await SerialPort.list()
       targetPath = ports[0]?.path ?? ''
-      if (targetPath === '') throw new Error('No hay puertos serie disponibles')
+      if (targetPath === '') throw new Error(t('errors.main.noPorts'))
     }
     await closeCurrent(emit)
     const opened = new SerialPort({ path: targetPath, baudRate, autoOpen: false })
@@ -62,11 +63,11 @@ export function registerRadioIpc(emit: Emit) {
   ipcMain.handle('radio:write', (_event, data: unknown) =>
     new Promise<void>((resolve, reject) => {
       if (typeof data !== 'string') {
-        reject(new Error('Payload inválido'))
+        reject(new Error(t('errors.main.invalidPayload')))
         return
       }
       if (port === null || !port.isOpen) {
-        reject(new Error('Puerto serie cerrado'))
+        reject(new Error(t('errors.main.portClosed')))
         return
       }
       port.write(data, (error) => {

@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { Dialog as RadixDialog } from 'radix-ui'
 import { cn } from '@/lib/cn'
+import { useI18n } from '@/i18n/useI18n'
 
 type Props = {
   open: boolean
@@ -13,6 +14,7 @@ type Props = {
 
 // Ventana modal con la cabecera azul de los paneles de SmartSDR.
 export function Dialog({ open, onOpenChange, title, description, children, className }: Props) {
+  const { t } = useI18n()
   return (
     <RadixDialog.Root open={open} onOpenChange={onOpenChange}>
       <RadixDialog.Portal>
@@ -26,7 +28,8 @@ export function Dialog({ open, onOpenChange, title, description, children, class
           <div className="flex items-center justify-between bg-navy px-3 py-1.5">
             <RadixDialog.Title className="text-sm font-medium">{title}</RadixDialog.Title>
             <RadixDialog.Close
-              aria-label="Cerrar"
+              aria-label={t('common.close')}
+
               className="px-2 text-lg leading-none text-muted outline-none hover:text-fg focus-visible:ring-2 focus-visible:ring-slice"
             >
               ×

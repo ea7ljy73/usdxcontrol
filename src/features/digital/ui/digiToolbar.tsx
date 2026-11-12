@@ -5,6 +5,7 @@ import { CLOCK_TOLERANCE_MS, measureOffset } from '../application/digiClock'
 import { digiDialHz } from '../domain/digiFrequencies'
 import { DIGI_MODES, slotIndex, slotLengthMs, slotParity, slotProgress, slotStartMs, type DigiMode } from '../domain/slots'
 import { useDigital, useUtcNow } from './useDigital'
+import { useI18n } from '@/i18n/useI18n'
 
 const DIGI_BANDS = ['160m', '80m', '60m', '40m', '30m', '20m', '17m', '15m', '12m', '10m', '6m']
 
@@ -19,6 +20,7 @@ const two = (value: number) => String(value).padStart(2, '0')
 
 // Barra superior de la pantalla FT8: modo, bandas, audio, ventanas y reloj UTC del ciclo.
 export function DigiToolbar({ dialHz, onMode, onTune, onOpenDialog }: Props) {
+  const { t } = useI18n()
   const { receiver, receiverState, operator, operatorState, clock, utcSource } = useDigital()
   const now = useUtcNow()
   const [offset, setOffset] = useState<number | null>(null)
@@ -41,12 +43,12 @@ export function DigiToolbar({ dialHz, onMode, onTune, onOpenDialog }: Props) {
       setOffset(measured)
       operator.notify(
         Math.abs(measured) <= CLOCK_TOLERANCE_MS
-          ? `Reloj en hora (${measured >= 0 ? '+' : ''}${measured} ms), corregido`
-          : `El reloj iba ${(measured / 1_000).toFixed(1)} s desviado: corregido para FT8; ajusta la hora del sistema`,
+          ? t('digital.toolbar.clockOk', { offset: `${measured >= 0 ? '+' : ''}${measured}` })
+          : t('digital.toolbar.clockOff', { seconds: (measured / 1_000).toFixed(1) }),
         Math.abs(measured) <= CLOCK_TOLERANCE_MS ? 'success' : 'error',
       )
     } catch (error) {
-      operator.notify(error instanceof Error ? error.message : 'No se pudo consultar la hora UTC', 'error')
+      operator.notify(error instanceof Error ? error.message : t('digital.toolbar.utcFailed'), 'error')
     } finally {
       setSyncing(false)
     }
@@ -54,7 +56,7 @@ export function DigiToolbar({ dialHz, onMode, onTune, onOpenDialog }: Props) {
 
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 bg-panel-deep px-2 py-1.5">
-      <div role="group" aria-label="Modo digital" className="flex gap-1">
+      <div role="group" aria-label={t('digital.toolbar.digiMode')} className="flex gap-1">
         {DIGI_MODES.map((entry) => (
           <Button
             key={entry}
@@ -68,7 +70,7 @@ export function DigiToolbar({ dialHz, onMode, onTune, onOpenDialog }: Props) {
         ))}
       </div>
 
-      <div role="group" aria-label={`Bandas ${mode}`} className="flex flex-wrap gap-1">
+      <div role="group" aria-label={t('digital.toolbar.bands', { mode })} className="flex flex-wrap gap-1">
         {DIGI_BANDS.map((band) => {
           const hz = digiDialHz(mode, band)
           if (hz === null) return null
@@ -89,14 +91,14 @@ export function DigiToolbar({ dialHz, onMode, onTune, onOpenDialog }: Props) {
         })}
       </div>
 
-      <div role="group" aria-label="Audio de recepción" className="flex gap-1">
+      <div role="group" aria-label={t('digital.toolbar.rxAudio')} className="flex gap-1">
         <Button
           variant={running ? 'navy' : 'tile'}
           aria-pressed={running}
           className="h-8 px-2 text-xs"
           onClick={() => void receiver.start()}
         >
-          ▶ Escuchar
+          ▶ {t('digital.toolbar.listen')}
         </Button>
         <Button
           variant={receiverState.status === 'paused' ? 'navy' : 'tile'}
@@ -105,7 +107,7 @@ export function DigiToolbar({ dialHz, onMode, onTune, onOpenDialog }: Props) {
           className="h-8 px-2 text-xs"
           onClick={() => (receiverState.status === 'paused' ? void receiver.start() : receiver.pause())}
         >
-          ❚❚ Pausa
+          ❚❚ {t('digital.toolbar.pause')}
         </Button>
         <Button
           variant="tile"
@@ -116,30 +118,30 @@ export function DigiToolbar({ dialHz, onMode, onTune, onOpenDialog }: Props) {
             receiver.stop()
           }}
         >
-          ■ Parar
+          ■ {t('digital.toolbar.stop')}
         </Button>
       </div>
 
       <div className="flex gap-1">
         <Button variant="tile" className="h-8 px-2 text-xs" onClick={() => onOpenDialog('settings')}>
-          Ajustes…
+          {t('digital.toolbar.settings')}
         </Button>
         <Button variant="tile" className="h-8 px-2 text-xs" onClick={() => onOpenDialog('audio')}>
           Audio…
         </Button>
         <Button variant="tile" className="h-8 px-2 text-xs" onClick={() => onOpenDialog('map')}>
-          Mapa
+          {t('digital.toolbar.map')}
         </Button>
         <Button
           variant="tile"
           className="h-8 px-2 text-xs"
-          title="Quién está decodificando tu señal (PSK Reporter)"
+          title={t('digital.toolbar.pskTitle')}
           onClick={() => onOpenDialog('psk')}
         >
           PSK Reporter
         </Button>
         <Button variant="tile" className="h-8 px-2 text-xs" onClick={() => onOpenDialog('logbook')}>
-          Libro ({operatorState.logbook.length})
+          {t('digital.toolbar.logbook', { count: operatorState.logbook.length })}
         </Button>
       </div>
 
@@ -167,10 +169,11 @@ export function DigiToolbar({ dialHz, onMode, onTune, onOpenDialog }: Props) {
           variant="tile"
           className="h-8 px-2 text-xs"
           disabled={syncing}
-          title="Compara el reloj con un servidor de hora y corrige el desfase (FT8 necesita ±1 s)"
+          title={t('digital.toolbar.syncTitle')}
           onClick={() => void sync()}
         >
-          {syncing ? 'Sincronizando…' : 'Sincronizar hora'}
+          {syncing ? t('digital.toolbar.syncing') : t('digital.toolbar.sync')}
+
         </Button>
         {offset !== null && (
           <span

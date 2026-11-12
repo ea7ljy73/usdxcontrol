@@ -1,3 +1,4 @@
+import { t } from '@/i18n/i18n'
 import type { RadioLink, RadioLinkStatus } from '@/features/radio/application/ports'
 
 type SerialPortLike = {
@@ -52,7 +53,8 @@ export const createWebSerialRadioLink = (): RadioLink => {
 
   const open = async () => {
     if (status !== 'disconnected') return
-    if (!serial) throw new Error('WebSerial no está disponible en este navegador')
+    if (!serial) throw new Error(t('errors.noWebSerial'))
+
     const chosen = await serial.requestPort()
     await chosen.open({ baudRate: BAUD_RATE })
     writer = chosen.writable.getWriter()

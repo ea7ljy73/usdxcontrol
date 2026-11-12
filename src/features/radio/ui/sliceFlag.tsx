@@ -1,4 +1,5 @@
 import { cn } from '@/lib/cn'
+import { useI18n } from '@/i18n/useI18n'
 import type { RadioMode } from '../domain/mode'
 import { passbandWidthLabel } from '../domain/passband'
 import { AGC_LEVELS, meterForS, meterPercent, meterRatio, sUnitLabel } from '../domain/receiver'
@@ -71,6 +72,7 @@ export function SliceFlag({
   onNrClick,
   onAgcClick,
 }: Props) {
+  const { t } = useI18n()
   const nrOn = (nr ?? 0) > 0
   const agcLabel = agc === null ? '--' : (AGC_SHORT[agc] ?? '--')
   return (
@@ -117,7 +119,7 @@ export function SliceFlag({
           type="button"
           data-testid="flag-nr"
           disabled={!controlsEnabled}
-          aria-label={`${nrOn ? `NR${nr}` : 'NR'}: reducción de ruido, clic para subir`}
+          aria-label={t('radio.flagNrAria', { label: nrOn ? `NR${nr}` : 'NR' })}
           onClick={onNrClick}
           className={cn(flagButton, nrOn ? 'text-ant' : 'text-dim')}
         >
@@ -127,7 +129,8 @@ export function SliceFlag({
           type="button"
           data-testid="flag-agc"
           disabled={!controlsEnabled}
-          aria-label={`AGC-${agcLabel}: ${agc === null ? 'desconocido' : AGC_LEVELS[agc]}, clic para cambiar`}
+          aria-label={t('radio.flagAgcAria', { label: agcLabel, level: agc === null ? t('radio.unknown') : AGC_LEVELS[agc] })}
+
           onClick={onAgcClick}
           className={cn(flagButton, 'ml-auto text-ant')}
         >

@@ -13,6 +13,9 @@ export interface RadioBridgeApi {
   listPorts(): Promise<PortInfo[]>
   onData(listener: (chunk: string) => void): () => void
   onStatus(listener: (status: 'connected' | 'disconnected') => void): () => void
+  // Idioma de la interfaz, para los mensajes de error del proceso principal.
+  setLocale?(locale: string): void
+
   // Cliente rtl_tcp del proceso principal (SDR por red).
   sdr: {
     open(options: { host: string; port: number }): Promise<void>

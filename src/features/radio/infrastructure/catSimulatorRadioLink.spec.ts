@@ -72,7 +72,7 @@ describe('catSimulatorRadioLink', () => {
     expect(received.join('')).toBe('FA00007074000;')
     link.send('RX;FA;MD;')
     await vi.advanceTimersByTimeAsync(50)
-    expect(link.state()).toEqual({ frequency: 7_200_000, mode: 'CW', tx: false, volume: 8, agc: 1, nr: 0 })
+    expect(link.state()).toEqual({ frequency: 7_200_000, mode: 'CW', tx: false, volume: 8, agc: 1, nr: 0, digi: 0 })
     expect(received.join('')).toContain('RX0;FA00007200000;MD3;')
   })
 

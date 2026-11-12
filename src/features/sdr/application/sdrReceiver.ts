@@ -1,3 +1,4 @@
+import { t } from '@/i18n/i18n'
 import type { SpectrumFeed, SpectrumFrame } from '@/features/spectrum/application/ports'
 import { iqSpectrumDb } from '../domain/iqSpectrum'
 import { DEFAULT_SDR_SAMPLE_RATE, sdrCenterFor, type FreqRange } from '../domain/sdrTuning'
@@ -131,7 +132,8 @@ export const createSdrReceiver = ({ connectors, store, sleep = defaultSleep }: O
     if (state.status === 'connecting' || state.status === 'on' || state.status === 'muted') return
     const connector = connectors[state.settings.source]
     if (!connector) {
-      update({ status: 'error', lastError: 'Esta forma de conectar el SDR no está disponible aquí' })
+      update({ status: 'error', lastError: t('errors.sdr.sourceUnavailable') })
+
       return
     }
     const own = ++generation

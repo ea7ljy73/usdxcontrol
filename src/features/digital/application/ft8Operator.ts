@@ -1,3 +1,5 @@
+import { t } from '@/i18n/i18n'
+import { CLEAR_GAP_HZ, findClearFrequency } from '../domain/clearFrequency'
 import type { DigiDecode } from '../domain/decodeList'
 import {
   answerCq,
@@ -36,6 +38,8 @@ export type OperatorSettings = {
   rxHz: number
   // Hold Tx Freq: al contestar o mover el RX, el tono de TX se queda donde está.
   holdTxFreq: boolean
+  // Al llamar CQ o contestar, si el tono de TX pisa otra señal se lleva antes a un hueco libre.
+  autoClearTx: boolean
   // Call 1st: tras nuestro CQ se contesta sola a la primera estación que llama.
   callFirst: boolean
   txParity: SlotParity
@@ -86,6 +90,7 @@ export const DEFAULT_SETTINGS: OperatorSettings = {
   toneHz: 1_000,
   rxHz: 1_000,
   holdTxFreq: false,
+  autoClearTx: true,
   callFirst: true,
   txParity: 'odd',
   autoSeq: true,
@@ -94,8 +99,11 @@ export const DEFAULT_SETTINGS: OperatorSettings = {
   txWatchdogMin: 6,
 }
 
-// Tono de TX dentro del paso de la radio, lejos de los bordes.
-const clampTone = (hz: number) => Math.min(2_900, Math.max(200, Math.round(hz)))
+// Tono de TX dentro de lo que el uSDX puede emitir: muestrea el audio de TX a 4800 Hz,
+// así que por encima de 2400 Hz la señal se refleja (sale invertida y nadie la decodifica).
+// La señal ocupa 50 Hz en FT8 y 83 Hz en FT4 sobre el tono base: tope en 2300 Hz.
+export const MAX_TX_TONE_HZ = 2_300
+const clampTone = (hz: number) => Math.min(MAX_TX_TONE_HZ, Math.max(200, Math.round(hz)))
 
 const ACTIVE: QsoPhase[] = ['cq', 'call', 'report', 'roger', 'rr73']
 const SEQUENCE: Record<'me' | 'them', QsoPhase[]> = {
@@ -138,6 +146,8 @@ export const createFt8Operator = ({
   tickMs = 200,
 }: Options) => {
   const settings: OperatorSettings = { ...DEFAULT_SETTINGS, ...(store.get<Partial<OperatorSettings>>('digi.settings') ?? {}) }
+  // Un tono guardado con un tope anterior (hasta 2900 Hz) se trae al rango que el uSDX puede emitir.
+  settings.toneHz = clampTone(settings.toneHz)
   let state: OperatorState = {
     settings,
     qso: initialQso(settings.myCall, settings.myGrid),
@@ -240,7 +250,7 @@ export const createFt8Operator = ({
     })
     if (entered) {
       // Como WSJT-X: al terminar se deja de transmitir y se propone guardar el QSO.
-      notify(`QSO completado con ${next.partner || state.dxCall}`, 'success')
+      notify(t('operator.qsoComplete', { call: next.partner || state.dxCall }), 'success')
       update({ txEnabled: false, logDraft: draftFor(next) })
       qsoStartedAt = null
       reportSent = null
@@ -285,7 +295,7 @@ export const createFt8Operator = ({
     } catch (error) {
       if (own !== generation) return
       releaseTx()
-      stopForError(`No se pudo transmitir «${message}»: ${error instanceof Error ? error.message : String(error)}`)
+      stopForError(t('operator.txFailed', { message, error: error instanceof Error ? error.message : String(error) }))
       return
     }
     if (own !== generation) {
@@ -334,7 +344,7 @@ export const createFt8Operator = ({
     }
     if (now - watchdogSince > state.settings.txWatchdogMin * 60_000) {
       watchdogSince = null
-      notify(`Vigilante de TX: ${state.settings.txWatchdogMin} min sin cambios, se deja de transmitir`, 'error')
+      notify(t('operator.watchdog', { minutes: state.settings.txWatchdogMin }), 'error')
       update({ txEnabled: false })
     }
   }
@@ -353,20 +363,45 @@ export const createFt8Operator = ({
     if (!message) return
     if (!canTransmit()) {
       lastTxSlot = index
-      stopForError('Conecta la radio para transmitir')
+      stopForError(t('operator.connectRadio'))
       return
     }
     if (!isEncodableMessage(message)) {
       lastTxSlot = index
-      stopForError(`«${message}» no es un mensaje ${mode} válido`)
+      stopForError(t('operator.invalidMessage', { message, mode }))
       return
     }
     void begin(index, message)
   }
 
-  // Contestar a una estación: el RX se va a su frecuencia y el TX también, salvo Hold Tx Freq.
-  const followFrequency = (audioHz: number): Partial<OperatorSettings> =>
-    state.settings.holdTxFreq ? { rxHz: audioHz } : { rxHz: audioHz, toneHz: clampTone(audioHz) }
+  // Como WSJT-X 2.7: al contestar o hacer clic el RX va a la estación y el TX se queda donde
+  // está (no se transmite encima del DX). Con Ctrl se mueven los dos, salvo Hold Tx Freq.
+  const followFrequency = (audioHz: number, moveTx = false): Partial<OperatorSettings> =>
+    moveTx && !state.settings.holdTxFreq ? { rxHz: audioHz, toneHz: clampTone(audioHz) } : { rxHz: audioHz }
+
+  // Antes de empezar a transmitir (CQ o llamada): si el TX pisa otra señal, a un hueco libre.
+  const autoClear = () => {
+    if (state.settings.autoClearTx && !state.settings.holdTxFreq) moveToClear(false)
+  }
+
+  // Lleva el tono de TX al hueco más limpio según lo decodificado en los últimos minutos.
+  const moveToClear = (announce: boolean) => {
+    const { decodes, mode } = receiver.getState()
+    const current = state.settings.toneHz
+    const found = findClearFrequency({ decodes, mode, nowMs: clock.now(), currentHz: current })
+    if (found.busy === 0) {
+      if (announce) notify(t('operator.clearNoDecodes'))
+      return
+    }
+    if (found.hz !== current) update({ settings: { ...state.settings, toneHz: clampTone(found.hz) } })
+    if (!announce && found.hz === current) return
+    const clean = found.gapHz >= CLEAR_GAP_HZ
+    notify(
+      found.hz === current
+        ? t(clean ? 'operator.clearStay' : 'operator.clearStayNear', { hz: current, gap: found.gapHz })
+        : t(clean ? 'operator.clearMoved' : 'operator.clearMovedNear', { hz: found.hz, gap: found.gapHz }),
+    )
+  }
 
   const stopTune = () => {
     if (tuneTimer) clearTimeout(tuneTimer)
@@ -392,7 +427,7 @@ export const createFt8Operator = ({
       if (busy && parsed.fromCall !== state.qso.partner) {
         if (!state.waiting.includes(parsed.fromCall)) {
           update({ waiting: [...state.waiting, parsed.fromCall] })
-          notify(`${parsed.fromCall} te llama: en espera`)
+          notify(t('operator.callingYouWaiting', { call: parsed.fromCall }))
         }
         continue
       }
@@ -400,7 +435,7 @@ export const createFt8Operator = ({
       if (state.qso.phase === 'cq' && !state.settings.callFirst) {
         if (!state.waiting.includes(parsed.fromCall)) {
           update({ waiting: [...state.waiting, parsed.fromCall] })
-          notify(`${parsed.fromCall} contesta a tu CQ: doble clic para seguir`)
+          notify(t('operator.answersCq', { call: parsed.fromCall }))
         }
         continue
       }
@@ -420,9 +455,12 @@ export const createFt8Operator = ({
     }
   }
 
-  const call = (callsign: string, grid = '', decodedSlotStartMs: number | null = null, audioHz: number | null = null) => {
+  type CallOptions = { grid?: string; decodedSlotStartMs?: number | null; audioHz?: number | null; moveTx?: boolean; clear?: boolean }
+
+  const call = (callsign: string, { grid = '', decodedSlotStartMs = null, audioHz = null, moveTx = false, clear = true }: CallOptions = {}) => {
+    if (clear && !moveTx) autoClear()
     const extra: Partial<OperatorState> = { txEnabled: true, dxCall: callsign.toUpperCase(), dxGrid: grid.toUpperCase(), reportRcvd: null }
-    if (audioHz !== null) extra.settings = { ...state.settings, ...followFrequency(audioHz) }
+    if (audioHz !== null) extra.settings = { ...state.settings, ...followFrequency(audioHz, moveTx) }
     if (state.settings.autoSlot && decodedSlotStartMs !== null) {
       const index = slotIndex(decodedSlotStartMs, receiver.getState().mode)
       extra.settings = { ...(extra.settings ?? state.settings), txParity: oppositeParity(slotParity(index)) }
@@ -430,7 +468,12 @@ export const createFt8Operator = ({
     qsoStartedAt = null
     reportSent = null
     applyQso(answerCq(withStation(state.qso), callsign, grid), extra)
-    notify(`Llamando a ${callsign.toUpperCase()} en la secuencia ${(extra.settings ?? state.settings).txParity === 'odd' ? 'impar' : 'par'}`)
+    notify(
+      t('operator.calling', {
+        call: callsign.toUpperCase(),
+        parity: (extra.settings ?? state.settings).txParity === 'odd' ? t('digital.qso.odd') : t('digital.qso.even'),
+      }),
+    )
   }
 
   const restore = () => {
@@ -479,7 +522,7 @@ export const createFt8Operator = ({
         return
       }
       if (!state.settings.myCall) {
-        notify('Escribe tu indicativo para transmitir', 'error')
+        notify(t('operator.needCallTx'), 'error')
         return
       }
       transmitter.prepare()
@@ -489,7 +532,7 @@ export const createFt8Operator = ({
       }
       // Sin QSO en marcha, como WSJT-X: se llama a la estación DX elegida o se lanza CQ.
       if (state.dxCall) {
-        call(state.dxCall, state.dxGrid)
+        call(state.dxCall, { grid: state.dxGrid })
         return
       }
       qsoStartedAt = null
@@ -499,27 +542,33 @@ export const createFt8Operator = ({
     // Tx6 · CQ: llamar general y repetir en cada ciclo propio.
     callCq() {
       if (!state.settings.myCall) {
-        notify('Escribe tu indicativo para llamar CQ', 'error')
+        notify(t('operator.needCallCq'), 'error')
         return
       }
       transmitter.prepare()
+      if (state.qso.phase !== 'cq') autoClear()
       qsoStartedAt = null
       reportSent = null
       applyQso(startCq(withStation(state.qso)), { txEnabled: true, reportRcvd: null })
     },
+    // Buscar hueco: mueve el TX a la zona más despejada de la banda.
+    findClearTx() {
+      moveToClear(true)
+    },
     // Doble clic en una línea: contestar a un CQ o seguir a quien nos llama.
-    answer(decode: DigiDecode) {
+    // Con Ctrl (moveTx) el TX también se va a su frecuencia, como en WSJT-X.
+    answer(decode: DigiDecode, { moveTx = false }: { moveTx?: boolean } = {}) {
       const parsed = decode.parsed
       if (!parsed || decode.tx || !parsed.fromCall) return
       if (!state.settings.myCall) {
-        notify('Escribe tu indicativo para contestar', 'error')
+        notify(t('operator.needCallAnswer'), 'error')
         return
       }
       transmitter.prepare()
       if (parsed.kind === 'qso' && parsed.toCall === state.settings.myCall) {
         const transition = onDecoded(withStation(state.qso), parsed, decode.snrDb)
         if (transition) {
-          const extra: Partial<OperatorState> = { txEnabled: true, settings: { ...state.settings, ...followFrequency(decode.audioHz) } }
+          const extra: Partial<OperatorState> = { txEnabled: true, settings: { ...state.settings, ...followFrequency(decode.audioHz, moveTx) } }
           if (parsed.report !== undefined) extra.reportRcvd = parsed.report
           if (state.settings.autoSlot) {
             const index = slotIndex(decode.slotStartMs, decode.mode)
@@ -530,7 +579,7 @@ export const createFt8Operator = ({
           return
         }
       }
-      call(parsed.fromCall, parsed.grid ?? '', decode.slotStartMs, decode.audioHz)
+      call(parsed.fromCall, { grid: parsed.grid ?? '', decodedSlotStartMs: decode.slotStartMs, audioHz: decode.audioHz, moveTx })
     },
     // Clic en una línea: la estación pasa a ser la DX.
     select(decode: DigiDecode) {
@@ -541,7 +590,7 @@ export const createFt8Operator = ({
     callDx() {
       if (!state.dxCall) return
       transmitter.prepare()
-      call(state.dxCall, state.dxGrid)
+      call(state.dxCall, { grid: state.dxGrid })
     },
     // Tx1–Tx6 y "Enviar": un mensaje suelto en el próximo ciclo propio.
     sendStandard(id: StdMessageId) {
@@ -552,7 +601,7 @@ export const createFt8Operator = ({
         reportDb: state.qso.report,
       }).find((entry) => entry.id === id)?.text
       if (!message) {
-        notify('Falta tu indicativo o el de la estación DX', 'error')
+        notify(t('operator.needBothCalls'), 'error')
         return
       }
       transmitter.prepare()
@@ -564,16 +613,21 @@ export const createFt8Operator = ({
         txMessage(withStation(state.qso)) ||
         standardMessages({ myCall: state.settings.myCall, myGrid: state.settings.myGrid, dxCall: state.dxCall, reportDb: state.qso.report })[5].text
       if (!message) {
-        notify('Escribe tu indicativo para transmitir', 'error')
+        notify(t('operator.needCallTx'), 'error')
         return
       }
       transmitter.prepare()
       update({ oneShot: message.toUpperCase() })
     },
     // Halt TX: corta ya la emisión y suelta el PTT.
-    // Rx: clic en la cascada. Sin Hold Tx Freq el TX la acompaña.
-    setRxHz(hz: number) {
-      update({ settings: { ...state.settings, ...followFrequency(Math.round(hz)) } })
+    // Rx: clic en la cascada. Ctrl + clic mueve también el TX (salvo Hold Tx Freq).
+    setRxHz(hz: number, { moveTx = false }: { moveTx?: boolean } = {}) {
+      update({ settings: { ...state.settings, ...followFrequency(Math.round(hz), moveTx) } })
+    },
+    // Mayús + F11 / F12 de WSJT-X: baja o sube el TX 60 Hz en FT8 y 90 Hz en FT4.
+    nudgeTx(direction: 1 | -1) {
+      const step = receiver.getState().mode === 'FT8' ? 60 : 90
+      update({ settings: { ...state.settings, toneHz: clampTone(state.settings.toneHz + direction * step) } })
     },
     // Tx: Mayús + clic en la cascada.
     setTxHz(hz: number) {
@@ -586,7 +640,7 @@ export const createFt8Operator = ({
       }
       if (state.tuning) return
       if (!canTransmit()) {
-        notify('Conecta la radio para transmitir', 'error')
+        notify(t('operator.connectRadio'), 'error')
         return
       }
       transmitter.prepare()
@@ -599,7 +653,7 @@ export const createFt8Operator = ({
         opened = await transmitter.tune(state.settings.toneHz)
       } catch (error) {
         update({ tuning: false })
-        notify(`No se pudo emitir el tono: ${error instanceof Error ? error.message : String(error)}`, 'error')
+        notify(t('operator.toneFailed', { error: error instanceof Error ? error.message : String(error) }), 'error')
         return
       }
       if (!state.tuning) {
@@ -611,7 +665,7 @@ export const createFt8Operator = ({
       ptt.on()
       tuneTimer = setTimeout(() => {
         stopTune()
-        notify(`Tune cortado a los ${TUNE_MAX_MS / 1_000} s`)
+        notify(t('operator.tuneStopped', { seconds: TUNE_MAX_MS / 1_000 }))
       }, TUNE_MAX_MS)
     },
     haltTx() {
@@ -645,13 +699,14 @@ export const createFt8Operator = ({
       const [next, ...rest] = state.waiting
       if (!next) return
       update({ waiting: rest })
-      call(next)
+      // Atendiendo a quien contesta a nuestro CQ: el TX se queda en nuestra frecuencia.
+      call(next, { clear: false })
     },
     removeWaiting: (callsign: string) => update({ waiting: state.waiting.filter((entry) => entry !== callsign) }),
     dismissNotice: (id: number) => update({ notices: state.notices.filter((notice) => notice.id !== id) }),
     prepareLog() {
       if (!(state.qso.partner || state.dxCall)) {
-        notify('Indica la estación contactada para guardar el QSO', 'error')
+        notify(t('operator.needLogCall'), 'error')
         return
       }
       update({ logDraft: draftFor(state.qso) })
@@ -661,7 +716,7 @@ export const createFt8Operator = ({
       const entries = [saved, ...state.logbook]
       logbook.save(entries)
       update({ logbook: entries, logDraft: null })
-      notify(`QSO con ${saved.call} guardado en el libro`, 'success')
+      notify(t('operator.logSaved', { call: saved.call }), 'success')
     },
     discardLog: () => update({ logDraft: null }),
     deleteLogEntry(id: string) {
@@ -675,7 +730,8 @@ export const createFt8Operator = ({
       const merged = [...state.logbook, ...added].sort((a, b) => b.endedAt.localeCompare(a.endedAt))
       logbook.save(merged)
       update({ logbook: merged })
-      notify(`${added.length} QSO importados`, 'success')
+      notify(t('operator.imported', { count: added.length }), 'success')
+
     },
     notify,
     subscribe(listener: (state: OperatorState) => void) {

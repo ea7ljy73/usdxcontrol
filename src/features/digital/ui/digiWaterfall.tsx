@@ -4,17 +4,14 @@ import { Button } from '@/components/ui/button'
 import { WATERFALL_PALETTES } from '../domain/palettes'
 import { LevelMeter } from './levelMeter'
 import { useDigital, useStoredState } from './useDigital'
+import { useI18n } from '@/i18n/useI18n'
 
 const MAX_HZ = 3_000
 const AXIS_HZ = [500, 1_000, 1_500, 2_000, 2_500]
 const DB_FLOOR = -110
 const DB_SPAN = 80
-const PALETTE_NAMES: Record<string, string> = {
-  clasico: 'Clásica',
-  espectro: 'Espectro',
-  fuego: 'Fuego',
-  mono: 'Verde',
-}
+const PALETTE_KEYS = ['clasico', 'espectro', 'fuego', 'mono'] as const
+const isPaletteKey = (key: string): key is (typeof PALETTE_KEYS)[number] => (PALETTE_KEYS as readonly string[]).includes(key)
 
 type View = {
   palette: string
@@ -39,6 +36,7 @@ const DEFAULT_VIEW: View = {
 // Cascada de audio 0–3 kHz de la pantalla FT8 (como la de WSJT-X): clic fija la frecuencia de RX
 // (y la de TX salvo Hold Tx Freq); Mayús + clic solo la de TX.
 export function DigiWaterfall() {
+  const { t } = useI18n()
   const { receiver, receiverState, operator, operatorState, transmitter } = useDigital()
   const [view, setView] = useStoredState<View>('digi.waterfall', DEFAULT_VIEW)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
@@ -127,9 +125,9 @@ export function DigiWaterfall() {
         <h2
           id="digi-waterfall"
           className="text-sm font-medium whitespace-nowrap"
-          title="Clic: frecuencia de RX · Mayús + clic: tono de TX"
+          title={t('digital.waterfall.title')}
         >
-          Cascada
+          {t('digital.waterfall.heading')}
         </h2>
         <span className="ml-auto font-mono text-xs whitespace-nowrap text-rx">RX {rxHz}</span>
         <span data-testid="digi-tone" className="font-mono text-xs whitespace-nowrap text-error">
@@ -142,7 +140,7 @@ export function DigiWaterfall() {
           className="px-1 text-xs whitespace-nowrap text-muted hover:text-fg"
           onClick={() => set('controls', !view.controls)}
         >
-          {view.controls ? 'Ocultar ajustes' : 'Ajustes'}
+          {view.controls ? t('digital.waterfall.hideSettings') : t('digital.waterfall.settings')}
         </button>
       </div>
       <div className="relative min-h-28 flex-1 bg-instrument">
@@ -170,13 +168,13 @@ export function DigiWaterfall() {
         />
         <button
           type="button"
-          aria-label={`Cascada: clic fija RX (ahora ${rxHz} Hz), Mayús + clic fija TX (ahora ${toneHz} Hz)`}
+          aria-label={t('digital.waterfall.aria', { rx: rxHz, tx: toneHz })}
           className="absolute inset-0 cursor-crosshair outline-none focus-visible:ring-2 focus-visible:ring-slice focus-visible:ring-inset"
           onClick={(event) => {
             const ratio = event.nativeEvent.offsetX / event.currentTarget.clientWidth
             const hz = Math.round((ratio * MAX_HZ) / 10) * 10
             if (event.shiftKey) operator.setTxHz(hz)
-            else operator.setRxHz(Math.min(MAX_HZ - 50, Math.max(0, hz)))
+            else operator.setRxHz(Math.min(MAX_HZ - 50, Math.max(0, hz)), { moveTx: event.ctrlKey || event.metaKey })
           }}
         />
       </div>
@@ -189,29 +187,29 @@ export function DigiWaterfall() {
         hidden={!view.controls}
         className="grid grid-cols-2 gap-x-3 gap-y-1 px-2 pb-2 sm:grid-cols-3"
       >
-        <Field label="Paleta">
+        <Field label={t('digital.waterfall.palette')}>
           <Select value={view.palette} onChange={(event) => set('palette', event.target.value)}>
             {Object.keys(WATERFALL_PALETTES).map((key) => (
               <option key={key} value={key}>
-                {PALETTE_NAMES[key] ?? key}
+                {isPaletteKey(key) ? t(`digital.waterfall.palettes.${key}`) : key}
               </option>
             ))}
           </Select>
         </Field>
-        <Field label="Espectro">
+        <Field label={t('digital.waterfall.spectrum')}>
           <Button
             variant={view.spectrum ? 'navy' : 'tile'}
             aria-pressed={view.spectrum}
             className="h-8"
             onClick={() => set('spectrum', !view.spectrum)}
           >
-            {view.spectrum ? 'Visible' : 'Oculto'}
+            {view.spectrum ? t('digital.waterfall.visible') : t('digital.waterfall.hidden')}
           </Button>
         </Field>
-        <Field label="Velocidad" hint={`×${view.speed}`}>
+        <Field label={t('digital.waterfall.speed')} hint={`×${view.speed}`}>
           <Range min={1} max={4} step={1} value={view.speed} onChange={(event) => set('speed', Number(event.target.value))} />
         </Field>
-        <Field label="Brillo" hint={view.brightness.toFixed(1)}>
+        <Field label={t('digital.waterfall.brightness')} hint={view.brightness.toFixed(1)}>
           <Range
             min={0.5}
             max={3}
@@ -220,7 +218,7 @@ export function DigiWaterfall() {
             onChange={(event) => set('brightness', Number(event.target.value))}
           />
         </Field>
-        <Field label="Contraste" hint={view.contrast.toFixed(1)}>
+        <Field label={t('digital.waterfall.contrast')} hint={view.contrast.toFixed(1)}>
           <Range
             min={0.5}
             max={4}
@@ -229,7 +227,8 @@ export function DigiWaterfall() {
             onChange={(event) => set('contrast', Number(event.target.value))}
           />
         </Field>
-        <Field label="Suelo de ruido" hint={view.floor.toFixed(2)}>
+        <Field label={t('digital.waterfall.floor')}
+ hint={view.floor.toFixed(2)}>
           <Range
             min={0}
             max={0.6}

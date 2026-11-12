@@ -145,22 +145,78 @@ describe('operador FT8', () => {
     expect(messages(transmitter)).toEqual(['F5BZB EA7LJY IM76'])
   })
 
-  it('contestar lleva el RX y el TX a la estación; con Hold Tx Freq el TX no se mueve', async () => {
+  it('contestar lleva el RX a la estación y el TX se queda, como WSJT-X 2.7; Ctrl lo mueve salvo Hold Tx Freq', async () => {
     const { operator, receiver } = setup({ '12:34:45': [{ db: -5, dt: 0.1, df: 1_730, text: 'CQ F5BZB JN05' }] })
     await receiver.start()
     await vi.advanceTimersByTimeAsync(at('12:35:00') - T0)
     const cq = receiver.getState().decodes.find((d) => d.text === 'CQ F5BZB JN05')!
+    operator.updateSettings({ toneHz: 900 })
     operator.answer(cq)
+    expect(operator.getState().settings).toMatchObject({ rxHz: 1_730, toneHz: 900 })
+
+    operator.resetQso()
+    operator.answer(cq, { moveTx: true })
     expect(operator.getState().settings).toMatchObject({ rxHz: 1_730, toneHz: 1_730 })
 
     operator.resetQso()
     operator.updateSettings({ holdTxFreq: true, toneHz: 900 })
-    operator.answer(cq)
+    operator.answer(cq, { moveTx: true })
     expect(operator.getState().settings).toMatchObject({ rxHz: 1_730, toneHz: 900 })
     operator.setRxHz(2_000)
     expect(operator.getState().settings).toMatchObject({ rxHz: 2_000, toneHz: 900 })
+    operator.updateSettings({ holdTxFreq: false })
+    operator.setRxHz(2_100, { moveTx: true })
+    expect(operator.getState().settings).toMatchObject({ rxHz: 2_100, toneHz: 2_100 })
+    // El uSDX no emite por encima de 2400 Hz (muestrea el audio de TX a 4800 Hz).
     operator.setTxHz(5_000)
-    expect(operator.getState().settings.toneHz).toBe(2_900)
+    expect(operator.getState().settings.toneHz).toBe(2_300)
+    operator.nudgeTx(-1)
+    expect(operator.getState().settings.toneHz).toBe(2_240)
+  })
+
+  it('al contestar, si el TX pisa otra señal se va al hueco libre más cercano', async () => {
+    const { operator, receiver } = setup({
+      '12:34:45': [
+        { db: -5, dt: 0.1, df: 1_730, text: 'CQ F5BZB JN05' },
+        { db: -12, dt: 0.1, df: 1_010, text: 'CQ A1AA FN42' },
+      ],
+    })
+    await receiver.start()
+    await vi.advanceTimersByTimeAsync(at('12:35:00') - T0)
+    const cq = receiver.getState().decodes.find((d) => d.text === 'CQ F5BZB JN05')!
+    operator.updateSettings({ toneHz: 1_000 })
+    operator.answer(cq)
+    const tone = operator.getState().settings.toneHz
+    expect(Math.abs(tone - 1_010)).toBeGreaterThanOrEqual(80)
+    expect(Math.abs(tone - 1_000)).toBeLessThanOrEqual(80)
+    // Con el TX ya en un hueco limpio no se toca.
+    operator.resetQso()
+    operator.updateSettings({ toneHz: 1_400 })
+    operator.answer(cq)
+    expect(operator.getState().settings.toneHz).toBe(1_400)
+  })
+
+  it('Llamar CQ lleva antes el TX a un hueco libre; Buscar hueco lo hace a mano', async () => {
+    const busy = [400, 600, 800, 1_000, 1_200, 1_400, 1_600, 1_800, 2_000, 2_200, 2_400]
+    const { operator, receiver } = setup({
+      '12:34:45': busy.map((df, i) => ({ db: -10, dt: 0.1, df, text: `CQ A${i}AA FN42` })),
+    })
+    await receiver.start()
+    await vi.advanceTimersByTimeAsync(at('12:35:00') - T0)
+    operator.updateSettings({ toneHz: 1_400 })
+    operator.callCq()
+    const tone = operator.getState().settings.toneHz
+    // Señal de 50 Hz con 30 Hz libres a cada lado.
+    expect(busy.every((hz) => Math.abs(hz - tone) >= 80)).toBe(true)
+    expect(Math.abs(tone - 1_400)).toBeLessThanOrEqual(100)
+
+    operator.resetQso()
+    operator.updateSettings({ toneHz: 1_000, autoClearTx: false })
+    operator.callCq()
+    expect(operator.getState().settings.toneHz).toBe(1_000)
+    operator.findClearTx()
+    expect(operator.getState().settings.toneHz).not.toBe(1_000)
+    expect(operator.getState().notices.at(-1)?.text).toMatch(/^TX movido a \d+ Hz/)
   })
 
   it('sin Call 1st, quien contesta a nuestro CQ queda en espera', async () => {
@@ -272,6 +328,13 @@ describe('operador FT8', () => {
     await vi.advanceTimersByTimeAsync(75_000)
     expect(operator.getState().txEnabled).toBe(false)
     expect(operator.getState().notices.at(-1)?.text).toMatch(/Vigilante/)
+  })
+
+  it('un tono de TX guardado por encima de lo que emite el uSDX se baja a 2300 Hz', () => {
+    const store = memoryStore()
+    store.set('digi.settings', { toneHz: 2_700 })
+    const { operator } = setup({}, store)
+    expect(operator.getState().settings.toneHz).toBe(2_300)
   })
 
   it('recupera el QSO en curso tras recargar', async () => {

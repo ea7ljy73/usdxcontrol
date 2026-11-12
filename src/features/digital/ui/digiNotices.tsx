@@ -1,11 +1,13 @@
 import { useEffect } from 'react'
 import { cn } from '@/lib/cn'
+import { useI18n } from '@/i18n/useI18n'
 import { useDigital } from './useDigital'
 
 const NOTICE_MS = 6_000
 
 // Avisos del operador (QSO completado, errores de TX…), que se van solos.
 export function DigiNotices() {
+  const { t } = useI18n()
   const { operator, operatorState } = useDigital()
   const { notices } = operatorState
 
@@ -32,7 +34,8 @@ export function DigiNotices() {
           <span className="flex-1">{notice.text}</span>
           <button
             type="button"
-            aria-label="Cerrar aviso"
+            aria-label={t('digital.closeNotice')}
+
             className="text-muted hover:text-fg"
             onClick={() => operator.dismissNotice(notice.id)}
           >

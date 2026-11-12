@@ -6,21 +6,24 @@ import { formatSlotUtc } from '../domain/slots'
 import { gridDistanceKm, gridToLatLng, greatCirclePath } from '../domain/grid'
 import { mapStations } from '../domain/stationMap'
 import { useDigital } from './useDigital'
+import { useI18n } from '@/i18n/useI18n'
+import { countryName } from '@/i18n/countries'
 
 type Props = { open: boolean; onOpenChange: (open: boolean) => void }
 
 const WINDOWS = [
-  { label: 'Último minuto', ms: 60_000 },
-  { label: 'Últimos 5 min', ms: 5 * 60_000 },
-  { label: 'Últimos 15 min', ms: 15 * 60_000 },
-  { label: 'Todo', ms: Number.POSITIVE_INFINITY },
-]
+  { id: 'lastMinute', ms: 60_000 },
+  { id: 'last5', ms: 5 * 60_000 },
+  { id: 'last15', ms: 15 * 60_000 },
+  { id: 'all', ms: Number.POSITIVE_INFINITY },
+] as const
 
 // Leaflet pinta en SVG con atributos: los tokens del tema se leen ya resueltos.
 const token = (name: string) => getComputedStyle(document.documentElement).getPropertyValue(`--${name}`).trim()
 
 // Mapa de las estaciones decodificadas, con el trayecto desde nuestro locator.
 export function DecodeMapDialog({ open, onOpenChange }: Props) {
+  const { t, locale } = useI18n()
   const { receiverState, operatorState, clock } = useDigital()
   const [windowMs, setWindowMs] = useState(5 * 60_000)
   const [host, setHost] = useState<HTMLDivElement | null>(null)
@@ -107,7 +110,7 @@ export function DecodeMapDialog({ open, onOpenChange }: Props) {
         .bindTooltip(
           [
             `${station.call}${station.grid ? ` · ${station.grid}` : ''}`,
-            station.country,
+            station.country ? countryName(station.country) : '',
             `${station.snrDb} dB · ${station.audioHz} Hz · ${formatSlotUtc(station.lastHeardMs)}`,
             distance !== null ? `${distance} km` : '',
           ]
@@ -117,38 +120,39 @@ export function DecodeMapDialog({ open, onOpenChange }: Props) {
         .addTo(layer)
     }
     map.invalidateSize()
-  }, [stations, myGrid, dxCall, ready])
+  }, [stations, myGrid, dxCall, ready, locale])
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange} title="Mapa de estaciones" className="max-w-4xl">
+    <Dialog open={open} onOpenChange={onOpenChange} title={t('digital.map.title')} className="max-w-4xl">
       <div className="flex flex-col gap-2">
         <div className="flex flex-wrap items-center gap-3 text-xs text-muted">
           <Select
-            aria-label="Periodo del mapa"
+            aria-label={t('digital.map.period')}
             className="w-40"
             value={String(windowMs)}
             onChange={(event) => setWindowMs(Number(event.target.value))}
           >
             {WINDOWS.map((option) => (
-              <option key={option.label} value={String(option.ms)}>
-                {option.label}
+              <option key={option.id} value={String(option.ms)}>
+                {t(`digital.map.window.${option.id}`)}
               </option>
             ))}
           </Select>
-          <span data-testid="digi-map-count">{stations.length} estaciones</span>
+          <span data-testid="digi-map-count">{t('digital.map.count', { count: stations.length })}</span>
           <span className="flex items-center gap-1">
             <span className="size-2 rounded-full bg-meter" /> CQ
           </span>
           <span className="flex items-center gap-1">
-            <span className="size-2 rounded-full bg-rx" /> en QSO
+            <span className="size-2 rounded-full bg-rx" /> {t('digital.map.inQso')}
           </span>
           <span className="flex items-center gap-1">
             <span className="size-2 rounded-full bg-slice" /> DX
           </span>
           <span className="flex items-center gap-1">
-            <span className="size-2 rounded-full bg-tx" /> mi QTH
+            <span className="size-2 rounded-full bg-tx" /> {t('digital.map.myQth')}
           </span>
-          {!gridToLatLng(myGrid) && <span className="text-slice">Pon tu locator para ver los trayectos</span>}
+          {!gridToLatLng(myGrid) && <span className="text-slice">{t('digital.map.setGrid')}</span>}
+
         </div>
         <div ref={setHost} data-testid="digi-map" className="h-96 w-full lg:h-140 bg-instrument" />
       </div>

@@ -1,3 +1,4 @@
+import { t } from '@/i18n/i18n'
 import type { UtcSource } from '../application/ports'
 
 // Hora UTC de servidores públicos (los mismos que radiocq), probando uno tras otro.
@@ -25,6 +26,7 @@ export const httpUtcSource: UtcSource = {
         // siguiente servidor
       }
     }
-    throw new Error('No se pudo consultar la hora UTC')
+    throw new Error(t('digital.toolbar.utcFailed'))
+
   },
 }

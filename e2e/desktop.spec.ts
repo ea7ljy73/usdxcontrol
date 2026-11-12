@@ -6,7 +6,8 @@ import { _electron as electron, expect, test } from '@playwright/test'
 // Perfil vacío en cada arranque: lo que el usuario guarde en la app (espectro plegado,
 // estilo, ajustes de FT8…) no debe cambiar lo que ven los tests.
 const launch = () =>
-  electron.launch({ args: ['.', `--user-data-dir=${mkdtempSync(path.join(tmpdir(), 'usdxcontrol-e2e-'))}`] })
+  electron.launch({ locale: 'es-ES', args: ['.', `--user-data-dir=${mkdtempSync(path.join(tmpdir(), 'usdxcontrol-e2e-'))}`] })
+
 
 test('la ventana de escritorio arranca', async () => {
   const app = await launch()

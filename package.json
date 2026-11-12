@@ -1,11 +1,12 @@
 {
   "name": "usdxcontrol",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0-beta.1",
   "type": "module",
   "main": "out/main/index.js",
   "description": "Estación de control para transceptores uSDX por CAT/UART",
   "author": "jgalera",
+  "license": "MIT",
   "homepage": "https://github.com/ea7ljy73/usdxcontrol",
   "scripts": {
     "dev": "vite",
@@ -19,7 +20,8 @@
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:update": "playwright test --update-snapshots",
     "test:desktop": "electron-vite build && playwright test --project=electron",
-    "dist": "electron-vite build && electron-builder"
+    "licenses:third-party": "node scripts/third-party-licenses.cjs",
+    "dist": "node scripts/third-party-licenses.cjs && electron-vite build && electron-builder"
   },
   "dependencies": {
     "serialport": "^13.0.0"

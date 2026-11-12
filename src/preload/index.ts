@@ -11,6 +11,8 @@ contextBridge.exposeInMainWorld('api', {
   closePort: () => ipcRenderer.invoke('radio:close'),
   write: (data: string) => ipcRenderer.invoke('radio:write', data),
   listPorts: () => ipcRenderer.invoke('radio:list'),
+  setLocale: (locale: string) => ipcRenderer.send('app:locale', locale),
+
   onData: (listener: (chunk: string) => void) => subscribe('radio:data', listener),
   onStatus: (listener: CallableFunction) =>
     subscribe('radio:status', (status) => listener(status)),

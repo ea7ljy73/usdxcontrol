@@ -1,5 +1,6 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
+import { t } from '@/i18n/i18n'
 
 type Props = { children: ReactNode; onCrash: () => void }
 type State = { error: Error | null }
@@ -27,13 +28,11 @@ export class CrashScreen extends Component<Props, State> {
     if (!error) return this.props.children
     return (
       <div role="alert" className="flex min-h-svh flex-col items-center justify-center gap-4 bg-bg p-6 text-center text-fg">
-        <h1 className="text-lg font-semibold">uSDX Control ha encontrado un error</h1>
-        <p className="max-w-md text-sm text-muted">
-          Se ha cortado la transmisión por seguridad. Recarga la ventana para seguir; tus ajustes, el libro de guardia y el QSO en curso
-          se conservan.
-        </p>
+        <h1 className="text-lg font-semibold">{t('app.crash.title')}</h1>
+        <p className="max-w-md text-sm text-muted">{t('app.crash.body')}</p>
         <pre className="max-w-xl overflow-auto rounded border border-line bg-instrument p-2 text-left text-xs text-error">{error.message}</pre>
-        <Button onClick={() => window.location.reload()}>Recargar</Button>
+        <Button onClick={() => window.location.reload()}>{t('app.crash.reload')}</Button>
+
       </div>
     )
   }

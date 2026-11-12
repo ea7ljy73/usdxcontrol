@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type WheelEvent } from 'react'
 import { cn } from '@/lib/cn'
+import { useI18n } from '@/i18n/useI18n'
 import { MAX_FREQUENCY_HZ, MIN_FREQUENCY_HZ, formatFrequency } from '../domain/frequency'
 
 const SLOTS = [10_000_000, 1_000_000, 100_000, 10_000, 1_000, 100, 10, 1]
 const GROUP_AFTER = new Set([1, 4])
-const PLACE_NAMES = ['decenas de MHz', 'MHz', 'centenas de kHz', 'decenas de kHz', 'kHz', 'centenas de Hz', 'decenas de Hz', 'Hz']
+const PLACE_KEYS = ['tenMhz', 'mhz', 'hundredKhz', 'tenKhz', 'khz', 'hundredHz', 'tenHz', 'hz'] as const
 
 type Props = {
   hz: number
@@ -19,6 +20,7 @@ const toDigits = (hz: number) => {
 }
 
 export function FrequencyEditor({ hz, onPreview, onCommit, onCancel }: Props) {
+  const { t } = useI18n()
   const [value, setValue] = useState(() => Math.min(Math.max(hz, MIN_FREQUENCY_HZ), MAX_FREQUENCY_HZ))
   const [selected, setSelected] = useState(1)
   const ref = useRef<HTMLDivElement | null>(null)
@@ -87,7 +89,7 @@ export function FrequencyEditor({ hz, onPreview, onCommit, onCancel }: Props) {
       data-testid="freq-editor"
       role="group"
       tabIndex={0}
-      aria-label={`Editor de frecuencia por dígitos, ${formatFrequency(value)} hercios, rueda o flechas arriba y abajo para variar el dígito elegido, Enter para confirmar, Escape para cancelar`}
+      aria-label={t('radio.freqEditor.aria', { freq: formatFrequency(value) })}
       onKeyDown={onKeyDown}
       className="flex items-center justify-center gap-0.5 border border-accent bg-instrument px-1 py-1 outline-none focus-visible:ring-2 focus-visible:ring-accent"
     >
@@ -95,7 +97,8 @@ export function FrequencyEditor({ hz, onPreview, onCommit, onCancel }: Props) {
         <span key={slot} className="flex items-center">
           <span
             data-testid={`freq-digit-${slot}`}
-            title={`Dígito ${PLACE_NAMES[slot]} · rueda, ↑/↓ o teclea un número`}
+            title={t('radio.freqEditor.digitTitle', { place: t(`radio.freqEditor.place.${PLACE_KEYS[slot]}`) })}
+
             onWheel={(event: WheelEvent<HTMLSpanElement>) => adjust(slot, event.deltaY < 0 ? 1 : -1)}
             onClick={() => {
               setSelected(slot)

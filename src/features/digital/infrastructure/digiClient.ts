@@ -1,3 +1,4 @@
+import { t } from '@/i18n/i18n'
 import type { DigiMode } from '../domain/slots'
 
 // Cliente del worker del motor FT8/FT4. Si el worker no está disponible o falla,
@@ -24,7 +25,7 @@ function ensureWorker(): Worker | null {
     const w = new Worker(new URL('./digiWorker.ts', import.meta.url), { type: 'module' })
     w.onerror = () => {
       broken = true
-      for (const p of pending.values()) p.reject(new Error('worker no disponible'))
+      for (const p of pending.values()) p.reject(new Error(t('errors.engine.workerUnavailable')))
       pending.clear()
       try { w.terminate() } catch { /* ya parado */ }
       if (worker === w) worker = null
@@ -35,7 +36,8 @@ function ensureWorker(): Worker | null {
       if (!p) return
       pending.delete(data.id)
       if (data.ok) p.resolve({ results: data.results, wave: data.wave ?? null })
-      else p.reject(new Error(data.error || 'error en el motor'))
+      else p.reject(new Error(data.error || t('errors.engine.failed'))
+)
     }
     worker = w
     return w

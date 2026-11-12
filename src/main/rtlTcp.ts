@@ -1,3 +1,4 @@
+import { t } from '../i18n/i18n.js'
 import { ipcMain } from 'electron'
 import net from 'node:net'
 
@@ -23,7 +24,7 @@ const reset = () => {
   waiter = null
 }
 
-const closeSocket = (reason = 'rtl_tcp desconectado') => {
+const closeSocket = (reason = t('errors.main.tcpDisconnected')) => {
   socket?.destroy()
   socket = null
   // Una lectura en curso falla ya, sin esperar al plazo.
@@ -35,8 +36,8 @@ export function registerRtlTcpIpc() {
   ipcMain.handle('sdr:open', async (_event, options: { host?: unknown; port?: unknown }) => {
     const host = typeof options?.host === 'string' ? options.host.trim() : ''
     const port = Number(options?.port)
-    if (!HOST_RE.test(host)) throw new Error('Host de rtl_tcp no válido')
-    if (!Number.isInteger(port) || port < 1 || port > 65_535) throw new Error('Puerto de rtl_tcp no válido')
+    if (!HOST_RE.test(host)) throw new Error(t('errors.main.tcpHost'))
+    if (!Number.isInteger(port) || port < 1 || port > 65_535) throw new Error(t('errors.main.tcpPort'))
     closeSocket()
     await new Promise<void>((resolve, reject) => {
       const opened = net.connect({ host, port })
@@ -64,15 +65,15 @@ export function registerRtlTcpIpc() {
         if (waiter && buffer.length >= waiter.bytes) waiter.resolve()
       })
       opened.on('close', () => {
-        if (socket === opened) closeSocket('rtl_tcp cerró la conexión')
+        if (socket === opened) closeSocket(t('errors.main.tcpClosed'))
       })
     })
   })
 
   ipcMain.handle('sdr:command', (_event, command: unknown, value: unknown) => {
-    if (!socket) throw new Error('rtl_tcp no conectado')
-    if (typeof command !== 'number' || !COMMANDS.has(command)) throw new Error('Orden rtl_tcp no válida')
-    if (typeof value !== 'number' || !Number.isInteger(value) || value < 0 || value > 0xffff_ffff) throw new Error('Valor no válido')
+    if (!socket) throw new Error(t('errors.main.tcpNotConnected'))
+    if (typeof command !== 'number' || !COMMANDS.has(command)) throw new Error(t('errors.main.tcpCommand'))
+    if (typeof value !== 'number' || !Number.isInteger(value) || value < 0 || value > 0xffff_ffff) throw new Error(t('errors.main.invalidValue'))
     const frame = Buffer.alloc(5)
     frame.writeUInt8(command, 0)
     frame.writeUInt32BE(value, 1)
@@ -80,14 +81,14 @@ export function registerRtlTcpIpc() {
   })
 
   ipcMain.handle('sdr:read', async (_event, bytes: unknown) => {
-    if (!socket) throw new Error('rtl_tcp no conectado')
-    if (typeof bytes !== 'number' || !Number.isInteger(bytes) || bytes < 2 || bytes > MAX_READ_BYTES) throw new Error('Lectura no válida')
+    if (!socket) throw new Error(t('errors.main.tcpNotConnected'))
+    if (typeof bytes !== 'number' || !Number.isInteger(bytes) || bytes < 2 || bytes > MAX_READ_BYTES) throw new Error(t('errors.main.invalidRead'))
     // Se espera a tener datos nuevos para no repetir el mismo bloque.
     buffer = Buffer.alloc(0)
     await new Promise<void>((resolve, reject) => {
       const timer = setTimeout(() => {
         waiter = null
-        reject(new Error('rtl_tcp no envía muestras'))
+        reject(new Error(t('errors.main.tcpNoSamples')))
       }, READ_TIMEOUT_MS)
       // Un byte de más para poder alinear el bloque a pares I/Q.
       waiter = {

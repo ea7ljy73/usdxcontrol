@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react'
-import { useContainer, type PortSelection, type SpectrumFeeds } from '@/app/container'
+import { useContainer, type LinkKind, type PortSelection, type SpectrumFeeds } from '@/app/container'
 import type { RadioSnapshot } from '../application/radioSession'
 
 type RadioSession = ReturnType<typeof import('../application/radioSession').createRadioSession>
@@ -7,7 +7,8 @@ type RadioSession = ReturnType<typeof import('../application/radioSession').crea
 export const useRadioSession = (): {
   session: RadioSession
   snapshot: RadioSnapshot
-  linkKind: string
+  linkKind: LinkKind
+
   portSelection: PortSelection | null
   spectrumSimulated: boolean
   spectrumFeeds: SpectrumFeeds

@@ -1,3 +1,4 @@
+import { t } from '@/i18n/i18n'
 import type { DirectSamplingMode, SdrConnector } from '../application/ports'
 
 type UsbPlatform = 'linux' | 'windows' | 'other'
@@ -15,27 +16,28 @@ export const explainUsbError = (error: unknown, userAgent: string): Error => {
   if (name === 'NotFoundError') {
     return new Error(
       platform === 'windows'
-        ? 'No se encuentra ningún RTL-SDR. Conéctalo y comprueba que tiene el driver WinUSB (Zadig).'
-        : 'No se encuentra ningún RTL-SDR conectado por USB.',
+        ? t('errors.sdr.notFoundWindows')
+        : t('errors.sdr.notFound'),
     )
   }
   if (name === 'SecurityError' || /access denied/i.test(message)) {
     return new Error(
       platform === 'linux'
-        ? 'Sin permiso para abrir el RTL-SDR: falta la regla udev del USB 0bda:2832/2838 (ver el manual, apartado SDR).'
-        : 'El sistema no deja abrir el RTL-SDR. Ciérralo en cualquier otro programa que lo use.',
+        ? t('errors.sdr.noPermissionLinux')
+        : t('errors.sdr.noPermission'),
     )
   }
   if (/another application|claim/i.test(message)) {
     if (platform === 'linux') {
       return new Error(
-        'Linux tiene ocupado el RTL-SDR con su driver de TV. Ejecuta «sudo modprobe -r dvb_usb_rtl28xxu» y vuelve a conectar; para que no se repita, mira el manual (apartado SDR).',
+        t('errors.sdr.busyLinux'),
       )
     }
     if (platform === 'windows') {
-      return new Error('Windows no deja abrir el RTL-SDR: instala el driver WinUSB con Zadig o ciérralo en otro programa.')
+      return new Error(t('errors.sdr.busyWindows'))
     }
-    return new Error('No se puede abrir el RTL-SDR: ciérralo en cualquier otro programa que lo esté usando.')
+    return new Error(t('errors.sdr.busy'))
+
   }
   return error instanceof Error ? error : new Error(message)
 }

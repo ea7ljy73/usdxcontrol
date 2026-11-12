@@ -3,13 +3,15 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/cn'
 import { DecodeTable } from './decodeTable'
 import { useDigital, useStoredState } from './useDigital'
+import { t } from '@/i18n/i18n'
+import { useI18n } from '@/i18n/useI18n'
 
 // Lee un WAV (PCM 8/16 bits o float 32, mono o estéreo) a muestras mono.
 const readWav = async (file: File): Promise<{ samples: Float32Array; rate: number }> => {
   const buffer = await file.arrayBuffer()
   const view = new DataView(buffer)
   if (buffer.byteLength < 44 || view.getUint32(0, false) !== 0x52494646 || view.getUint32(8, false) !== 0x57415645) {
-    throw new Error('No es un fichero WAV')
+    throw new Error(t('digital.wav.notWav'))
   }
   let format = -1
   let offset = 12
@@ -43,11 +45,12 @@ const readWav = async (file: File): Promise<{ samples: Float32Array; rate: numbe
     }
     offset = body + size + (size % 2)
   }
-  throw new Error('WAV sin audio')
+  throw new Error(t('digital.wav.noAudio'))
 }
 
 // "Band Activity" de WSJT-X: clic elige la estación DX, doble clic (o Intro) contesta.
 export function BandActivity() {
+  useI18n()
   const { receiver, receiverState, operator } = useDigital()
   const fileRef = useRef<HTMLInputElement | null>(null)
   const [filter, setFilter] = useStoredState('digi.activity', { cqOnly: false })
@@ -55,27 +58,27 @@ export function BandActivity() {
   const shown = filter.cqOnly ? decodes.filter((decode) => decode.tx || decode.parsed?.kind === 'cq') : decodes
   const statusLabel =
     status === 'error'
-      ? (receiverState.lastError ?? 'Error de audio')
+      ? (receiverState.lastError ?? t('digital.activity.audioError'))
       : status === 'starting'
-        ? 'Abriendo el audio…'
+        ? t('digital.activity.opening')
         : decoding
-          ? 'Decodificando…'
+          ? t('digital.activity.decoding')
           : status === 'on'
-            ? '● En vivo'
+            ? t('digital.activity.live')
             : status === 'paused'
-              ? 'En pausa'
-              : 'Parado'
+              ? t('digital.activity.paused')
+              : t('digital.activity.stopped')
 
   const openFile = async (file: File) => {
     try {
       const { samples, rate } = await readWav(file)
       const found = await receiver.decodeFile(samples, rate)
       operator.notify(
-        found > 0 ? `${file.name}: ${found} señales decodificadas` : `${file.name}: sin señales FT8/FT4`,
+        found > 0 ? t('digital.wav.decoded', { file: file.name, count: found }) : t('digital.wav.none', { file: file.name }),
         found > 0 ? 'success' : 'error',
       )
     } catch (error) {
-      operator.notify(`${file.name}: ${error instanceof Error ? error.message : 'no se pudo leer'}`, 'error')
+      operator.notify(`${file.name}: ${error instanceof Error ? error.message : t('digital.wav.unreadable')}`, 'error')
     }
   }
 
@@ -107,7 +110,7 @@ export function BandActivity() {
             className="h-7 px-2 text-xs"
             onClick={() => setFilter({ cqOnly: !filter.cqOnly })}
           >
-            Solo CQ
+            {t('digital.activity.cqOnly')}
           </Button>
           <Button
             variant="tile"
@@ -115,20 +118,20 @@ export function BandActivity() {
             disabled={status !== 'on' && status !== 'paused'}
             onClick={() => void receiver.decodeNow()}
           >
-            Decodificar
+            {t('digital.activity.decode')}
           </Button>
           <Button variant="tile" className="h-7 px-2 text-xs" onClick={() => fileRef.current?.click()}>
-            Abrir WAV…
+            {t('digital.activity.openWav')}
           </Button>
           <Button variant="tile" className="h-7 px-2 text-xs" disabled={decodes.length === 0} onClick={receiver.clear}>
-            Limpiar
+            {t('digital.activity.clear')}
           </Button>
         </span>
         <input
           ref={fileRef}
           type="file"
           accept=".wav,audio/wav,audio/x-wav"
-          aria-label="Fichero WAV para decodificar"
+          aria-label={t('digital.activity.wavFile')}
           className="hidden"
           onChange={(event) => {
             const file = event.target.files?.[0]
@@ -141,8 +144,9 @@ export function BandActivity() {
         {decodes.length === 0 ? (
           <p className="p-3 text-xs text-muted">
             {status === 'on'
-              ? `Esperando el primer ciclo: se decodifica a los ${receiverState.mode === 'FT8' ? '14' : '6,4'} s de cada uno.`
-              : 'Pulsa Escuchar para recibir.'}
+              ? t('digital.activity.waiting', { seconds: receiverState.mode === 'FT8' ? '14' : t('digital.activity.ft4Seconds') })
+              : t('digital.activity.pressListen')}
+
           </p>
         ) : (
           <DecodeTable decodes={shown} testId="digi-decodes" label="Band Activity" />

@@ -5,6 +5,7 @@ import { Dialog } from '@/components/ui/dialog'
 import { gridDistanceKm, gridToLatLng, greatCirclePath } from '../domain/grid'
 import { bandOf, summarizePsk, type PskSpot } from '../domain/pskReport'
 import { useDigital } from './useDigital'
+import { useI18n } from '@/i18n/useI18n'
 
 type Props = { open: boolean; onOpenChange: (open: boolean) => void }
 
@@ -20,6 +21,7 @@ const hhmm = (ms: number) => {
 
 // Quién oye nuestra señal (PSK Reporter, última hora): mapa de receptores y lista.
 export function PskReporterDialog({ open, onOpenChange }: Props) {
+  const { t } = useI18n()
   const { pskReporter, operatorState } = useDigital()
   const myCall = operatorState.settings.myCall
   const myGrid = operatorState.settings.myGrid
@@ -127,29 +129,29 @@ export function PskReporterDialog({ open, onOpenChange }: Props) {
       open={open}
       onOpenChange={onOpenChange}
       title="PSK Reporter"
-      description="Estaciones que han decodificado tu señal en la última hora: confirma que la emisión sale y hasta dónde llega."
+      description={t('digital.psk.description')}
       className="max-w-4xl"
     >
       <div className="flex flex-col gap-2">
         <div className="flex flex-wrap items-center gap-3 text-xs text-muted">
           <Button variant="tile" className="h-7 px-2 text-xs" disabled={!myCall || loading} onClick={() => void refresh()}>
-            {loading ? 'Consultando…' : 'Actualizar'}
+            {loading ? t('digital.psk.loading') : t('digital.psk.refresh')}
           </Button>
           {myCall ? (
             <span data-testid="psk-summary">
-              {myCall}: oído por <strong className="text-fg">{summary.count}</strong> estaciones
-              {summary.bestSnr !== null && <> · mejor {summary.bestSnr} dB</>}
+              {myCall}: {t('digital.psk.heardBy')} <strong className="text-fg">{summary.count}</strong> {t('digital.psk.stations')}
+              {summary.bestSnr !== null && <> · {t('digital.psk.best', { snr: summary.bestSnr })}</>}
               {summary.farthestKm !== null && (
                 <>
                   {' '}
-                  · más lejos {summary.farthestCall} ({summary.farthestKm} km)
+                  · {t('digital.psk.farthest', { call: summary.farthestCall ?? '', km: summary.farthestKm })}
                 </>
               )}
             </span>
           ) : (
-            <span className="text-slice">Escribe tu indicativo en Ajustes para consultar PSK Reporter</span>
+            <span className="text-slice">{t('digital.psk.needCall')}</span>
           )}
-          {updatedAt !== null && <span>actualizado {hhmm(updatedAt)} UTC</span>}
+          {updatedAt !== null && <span>{t('digital.psk.updated', { time: hhmm(updatedAt) })}</span>}
           <span className="flex items-center gap-1">
             <span className="size-2 rounded-full bg-rx" /> ≥ −10 dB
           </span>
@@ -168,11 +170,11 @@ export function PskReporterDialog({ open, onOpenChange }: Props) {
             <thead className="sticky top-0 bg-panel text-left text-muted">
               <tr>
                 <th className="px-1">UTC</th>
-                <th className="px-1">Receptor</th>
-                <th className="px-1">Locator</th>
-                <th className="px-1">País</th>
+                <th className="px-1">{t('digital.psk.receiver')}</th>
+                <th className="px-1">{t('digital.log.grid')}</th>
+                <th className="px-1">{t('digital.table.country')}</th>
                 <th className="px-1 text-right">dB</th>
-                <th className="px-1">Banda</th>
+                <th className="px-1">{t('digital.psk.band')}</th>
                 <th className="px-1 text-right">km</th>
               </tr>
             </thead>
@@ -191,7 +193,8 @@ export function PskReporterDialog({ open, onOpenChange }: Props) {
               {spots.length === 0 && !loading && myCall && (
                 <tr>
                   <td colSpan={7} className="px-1 py-2 text-muted">
-                    Nadie ha reportado tu señal en la última hora.
+                    {t('digital.psk.none')}
+
                   </td>
                 </tr>
               )}

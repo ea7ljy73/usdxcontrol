@@ -1,3 +1,4 @@
+import { t } from '@/i18n/i18n'
 import type { AudioDeviceList } from '../application/ports'
 
 // Entradas virtuales de Chrome que duplican una tarjeta real.
@@ -23,6 +24,10 @@ export const mediaDeviceList: AudioDeviceList = {
       devices
         .filter((device) => device.kind === kind && !ALIASES.has(device.deviceId))
         .map((device, index) => ({ id: device.deviceId, label: device.label || `${fallback} ${index + 1}` }))
-    return { inputs: named('audioinput', 'Entrada'), outputs: named('audiooutput', 'Salida') }
+    // Chrome nombra la entrada virtual «default» como «Predeterminado - <tarjeta real>».
+    const fallback = devices.find((device) => device.kind === 'audiooutput' && device.deviceId === 'default')?.label
+    const defaultOutput = fallback?.replace(/^[^-]*-\s*/, '') || undefined
+    return { inputs: named('audioinput', t('audio.fallbackInput'))
+, outputs: named('audiooutput', t('audio.fallbackOutput')), defaultOutput }
   },
 }

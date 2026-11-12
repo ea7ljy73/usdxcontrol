@@ -1,22 +1,24 @@
 # Instalación de la app de escritorio (Electron)
 
+*[English version](../en/installation.md)*
+
 ## Artefactos
 
-`pnpm dist` genera:
+Los instaladores de cada versión están en [Releases](https://github.com/ea7ljy73/usdxcontrol/releases). `pnpm dist` los genera en local en `dist-instalador/`:
 
-- `dist-instalador/usdxcontrol-0.0.0.AppImage` — Linux, portable, sin instalación.
-- `dist-instalador/usdxcontrol-0.0.0.deb` — Linux Debian/Ubuntu.
-- En Windows/macOS (con la herramienta de la plataforma disponible): NSIS `.exe` / `.dmg`.
+- `usdxcontrol-<versión>-linux-x86_64.AppImage`: Linux, portable, sin instalación.
+- `usdxcontrol-<versión>-linux-amd64.deb`: Linux Debian/Ubuntu.
+- `usdxcontrol-<versión>-win-x64.exe` y `usdxcontrol-<versión>-mac-{x64,arm64}.dmg`: se compilan en Windows y macOS (lo hace la CI).
 
 ## Linux
 
 ```sh
 # AppImage: descargar y ejecutar
-chmod +x usdxcontrol-0.0.0.AppImage
-./usdxcontrol-0.0.0.AppImage
+chmod +x usdxcontrol-<versión>-linux-x86_64.AppImage
+./usdxcontrol-<versión>-linux-x86_64.AppImage
 
 # deb: instalar en el sistema
-sudo dpkg -i usdxcontrol-0.0.0.deb
+sudo apt install ./usdxcontrol-<versión>-linux-amd64.deb
 ```
 
 ## Acceso al puerto serie (uSDX por USB/UART)
@@ -42,11 +44,16 @@ vuelve a iniciar sesión para que el cambio de grupo aplique.
 
 ## Windows
 
-- Instalador NSIS: ejecutar `usdxcontrol Setup 0.0.0.exe`.
+- Instalador NSIS: ejecutar `usdxcontrol-<versión>-win-x64.exe`.
 - Driver: si el puerto no aparece, instala el driver del convertidor
   USB-serial (CH340/CP210x) del adaptador usado con el uSDX.
 
+## macOS
+
+Abre el `.dmg` (arm64 para Apple Silicon, x64 para Intel) y arrastra la app a Aplicaciones. La app no está firmada, así que la primera vez hay que abrirla con clic derecho → *Abrir*.
+
 ## Cableado y parámetros
+
 
 - UART del uSDX: 38400 baudios, 8N1 (fijo).
 - El firmware solo acepta un comando por trama con pausas; la app ya respeta

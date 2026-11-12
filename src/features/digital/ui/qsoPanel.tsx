@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Field, TextInput } from '@/components/ui/field'
 import { cn } from '@/lib/cn'
@@ -8,15 +8,10 @@ import { gridDistanceKm } from '../domain/grid'
 import { isValidCall, standardMessages } from '../domain/messages'
 import { nextTxSlot, slotStartMs, TX_START_OFFSET_MS } from '../domain/slots'
 import { useDigital, useUtcNow } from './useDigital'
+import { useI18n } from '@/i18n/useI18n'
+import { countryName } from '@/i18n/countries'
 
-const PHASES: { phase: QsoPhase; label: string }[] = [
-  { phase: 'cq', label: 'CQ' },
-  { phase: 'call', label: 'Llamada' },
-  { phase: 'report', label: 'Reporte' },
-  { phase: 'roger', label: 'R+Rpt' },
-  { phase: 'rr73', label: 'RR73' },
-  { phase: 'done', label: 'Hecho' },
-]
+const PHASES = ['cq', 'call', 'report', 'roger', 'rr73', 'done'] as const satisfies readonly QsoPhase[]
 
 type CommitProps = { value: string; onCommit: (value: string) => void } & Omit<
   Parameters<typeof TextInput>[0],
@@ -54,6 +49,7 @@ function Toggle({ on, onClick, children, title }: { on: boolean; onClick: () => 
 
 // Panel inferior de la pantalla FT8: estación DX, mensajes Tx1–Tx6, secuencia y control de TX.
 export function QsoPanel({ onOpenSettings }: { onOpenSettings: () => void }) {
+  const { t } = useI18n()
   const { receiverState, operator, operatorState } = useDigital()
   const { settings, qso, dxCall, dxGrid, txEnabled, tx, waiting, oneShot } = operatorState
   const messages = standardMessages({
@@ -70,38 +66,57 @@ export function QsoPanel({ onOpenSettings }: { onOpenSettings: () => void }) {
         myCall: settings.myCall,
         myGrid: settings.myGrid.slice(0, 4),
       }))
-  const dxCountry = dxCall ? resolveDxcc(dxCall)?.entity : undefined
+  const dxEntity = dxCall ? resolveDxcc(dxCall)?.entity : undefined
+  const dxCountry = dxEntity ? countryName(dxEntity) : undefined
   const distance = dxGrid && settings.myGrid ? gridDistanceKm(settings.myGrid, dxGrid) : null
   const now = useUtcNow(500)
   const nextTxStart = slotStartMs(nextTxSlot(now, receiverState.mode, settings.txParity), receiverState.mode) + TX_START_OFFSET_MS
   const waitS = Math.max(0, Math.ceil((nextTxStart - now) / 1_000))
-  const parityLabel = settings.txParity === 'odd' ? 'impar' : 'par'
+  const parityLabel = settings.txParity === 'odd' ? t('digital.qso.odd') : t('digital.qso.even')
+
+  // Atajos de WSJT-X: Esc corta la emisión (Halt Tx) y Mayús + F11 / F12 baja o sube el TX.
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      const target = event.target instanceof Element ? event.target : null
+      if (event.key === 'Escape') {
+        // En un campo o un diálogo, Esc es para cancelar o cerrar.
+        if (event.defaultPrevented || target?.closest('input, textarea, select, [role="dialog"]')) return
+        operator.haltTx()
+        return
+      }
+      if (!event.shiftKey || (event.key !== 'F11' && event.key !== 'F12')) return
+      event.preventDefault()
+      operator.nudgeTx(event.key === 'F12' ? 1 : -1)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [operator])
 
   return (
     <section aria-label="QSO" className="grid gap-px bg-line lg:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)_minmax(0,1fr)]">
       <div className="flex flex-col gap-1.5 bg-panel-deep p-2">
         <div className="flex items-center gap-2">
-          <h2 className="text-xs font-medium tracking-wide text-muted uppercase">Estación DX</h2>
+          <h2 className="text-xs font-medium tracking-wide text-muted uppercase">{t('digital.qso.dxStation')}</h2>
           <button
             type="button"
             data-testid="digi-my-station"
             className="ml-auto font-mono text-xs text-muted hover:text-fg"
-            title="Mi indicativo y locator"
+            title={t('digital.qso.myStation')}
             onClick={onOpenSettings}
           >
-            {settings.myCall ? `${settings.myCall} · ${settings.myGrid || '----'}` : 'Configurar mi indicativo…'}
+            {settings.myCall ? `${settings.myCall} · ${settings.myGrid || '----'}` : t('digital.qso.setupCall')}
           </button>
         </div>
         {!isValidCall(settings.myCall) && (
           <p role="alert" className="flex items-center gap-2 bg-instrument px-2 py-1 text-xs text-slice">
-            Para transmitir pon tu indicativo y locator.
+            {t('digital.qso.needCall')}
             <Button variant="navy" className="ml-auto h-6 px-2 text-xs" onClick={onOpenSettings}>
-              Ajustes…
+              {t('digital.toolbar.settings')}
             </Button>
           </p>
         )}
         <div className="grid grid-cols-2 gap-1.5">
-          <Field label="DX indicativo" hint={dxCountry}>
+          <Field label={t('digital.qso.dxCall')} hint={dxCountry}>
             <CommitInput
               placeholder="—"
               value={dxCall}
@@ -109,7 +124,7 @@ export function QsoPanel({ onOpenSettings }: { onOpenSettings: () => void }) {
               className="font-mono uppercase"
             />
           </Field>
-          <Field label="DX locator" hint={distance !== null ? `${distance} km` : undefined}>
+          <Field label={t('digital.qso.dxGrid')} hint={distance !== null ? `${distance} km` : undefined}>
             <CommitInput
               placeholder="—"
               value={dxGrid}
@@ -117,9 +132,9 @@ export function QsoPanel({ onOpenSettings }: { onOpenSettings: () => void }) {
               className="font-mono uppercase"
             />
           </Field>
-          <Field label="Mensaje libre" hint="vacío = automático" className="col-span-2">
+          <Field label={t('digital.qso.freeText')} hint={t('digital.qso.freeTextHint')} className="col-span-2">
             <CommitInput
-              placeholder="automático"
+              placeholder={t('digital.qso.automatic')}
               maxLength={37}
               value={operatorState.txOverride}
               onCommit={(value) => operator.setTxOverride(value)}
@@ -129,19 +144,19 @@ export function QsoPanel({ onOpenSettings }: { onOpenSettings: () => void }) {
         </div>
         <div className="flex flex-wrap gap-1">
           <Button variant="tile" className="h-8 px-2 text-xs" disabled={!dxCall} onClick={operator.callDx}>
-            Llamar DX
+            {t('digital.qso.callDx')}
           </Button>
           <Button variant="tile" className="h-8 px-2 text-xs" disabled={!dxCall} onClick={() => operator.addWaiting()}>
-            Añadir a espera
+            {t('digital.qso.addWaiting')}
           </Button>
           <Button variant="tile" className="h-8 px-2 text-xs" onClick={operator.resetQso}>
-            Borrar DX
+            {t('digital.qso.clearDx')}
           </Button>
         </div>
       </div>
 
       <div className="flex flex-col gap-1.5 bg-panel-deep p-2">
-        <h2 className="text-xs font-medium tracking-wide text-muted uppercase">Mensajes</h2>
+        <h2 className="text-xs font-medium tracking-wide text-muted uppercase">{t('digital.qso.messages')}</h2>
         <ol className="flex flex-col gap-1">
           {messages.map((message, index) => (
             <li key={message.id} className="flex items-center gap-1">
@@ -153,22 +168,22 @@ export function QsoPanel({ onOpenSettings }: { onOpenSettings: () => void }) {
                   !message.text && 'text-muted',
                 )}
               >
-                {message.text ?? `(${message.label}: falta indicativo)`}
+                {message.text ?? t('digital.qso.missingCall', { label: t(`digital.qso.std.${message.id}`) })}
               </span>
               <Button
                 variant="tile"
-                aria-label={`Enviar Tx${index + 1} ${message.label}`}
+                aria-label={t('digital.qso.sendAria', { n: index + 1, label: t(`digital.qso.std.${message.id}`) })}
                 className="h-6 px-2 text-xs"
                 disabled={!message.text}
                 onClick={() => operator.sendStandard(message.id)}
               >
-                Enviar
+                {t('digital.qso.send')}
               </Button>
             </li>
           ))}
         </ol>
-        <div className="flex flex-wrap items-center gap-1" aria-label="Secuencia del QSO">
-          {PHASES.map(({ phase, label }) => (
+        <div className="flex flex-wrap items-center gap-1" aria-label={t('digital.qso.sequence')}>
+          {PHASES.map((phase) => (
             <span
               key={phase}
               data-active={qso.phase === phase}
@@ -177,7 +192,7 @@ export function QsoPanel({ onOpenSettings }: { onOpenSettings: () => void }) {
                 qso.phase === phase ? 'bg-slice text-instrument' : 'bg-instrument text-muted',
               )}
             >
-              {label}
+              {t(`digital.qso.phase.${phase}`)}
             </span>
           ))}
           <span data-testid="digi-qso-phase" className="sr-only">
@@ -186,19 +201,19 @@ export function QsoPanel({ onOpenSettings }: { onOpenSettings: () => void }) {
         </div>
         <div className="flex flex-wrap gap-1">
           <Button variant="tile" className="h-7 px-2 text-xs" onClick={operator.advancePhase}>
-            Siguiente paso →
+            {t('digital.qso.nextStep')}
           </Button>
           <Button variant="tile" className="h-7 px-2 text-xs" onClick={operator.restartSequence}>
-            Reiniciar secuencia
+            {t('digital.qso.restart')}
           </Button>
           <Button variant="tile" className="h-7 px-2 text-xs" onClick={operator.sendNow}>
-            Enviar ahora
+            {t('digital.qso.sendNow')}
           </Button>
         </div>
       </div>
 
       <div className="flex flex-col gap-1.5 bg-panel-deep p-2">
-        <h2 className="text-xs font-medium tracking-wide text-muted uppercase">Transmisión</h2>
+        <h2 className="text-xs font-medium tracking-wide text-muted uppercase">{t('digital.qso.transmission')}</h2>
         <div
           data-testid="digi-tx-status"
           className={cn(
@@ -207,14 +222,15 @@ export function QsoPanel({ onOpenSettings }: { onOpenSettings: () => void }) {
           )}
         >
           {operatorState.tuning
-            ? `TUNE ▶ portadora en ${settings.toneHz} Hz`
+            ? t('digital.qso.tuning', { hz: settings.toneHz })
             : tx.phase === 'on-air'
               ? `TX ▶ ${tx.message}`
               : tx.phase === 'scheduled'
-                ? `Preparado: ${tx.message}`
+                ? t('digital.qso.scheduled', { message: tx.message ?? '' })
+
                 : nextMessage && (txEnabled || oneShot)
-                  ? `Próximo (${parityLabel}, en ${waitS} s): ${nextMessage}`
-                  : 'Sin transmisión'}
+                  ? t('digital.qso.next', { parity: parityLabel, seconds: waitS, message: nextMessage })
+                  : t('digital.qso.noTx')}
         </div>
         <div className="grid grid-cols-2 gap-1 sm:grid-cols-4 [&>button]:px-1 [&>button]:whitespace-nowrap">
           <Button
@@ -224,15 +240,15 @@ export function QsoPanel({ onOpenSettings }: { onOpenSettings: () => void }) {
             className={cn('h-9 text-xs', txEnabled && 'text-error aria-pressed:text-tx-fg aria-pressed:bg-tx')}
             onClick={() => operator.setTxEnabled(!txEnabled)}
           >
-            Habilitar TX
+            {t('digital.qso.enableTx')}
           </Button>
           <Button variant="tile" className="h-9 text-xs" onClick={operator.callCq}>
-            Llamar CQ
+            {t('digital.qso.callCq')}
           </Button>
           <Button
             variant={operatorState.tuning ? 'navy' : 'tile'}
             aria-pressed={operatorState.tuning}
-            title="Portadora continua en el tono de TX para ajustar la potencia (se corta a los 60 s)"
+            title={t('digital.qso.tuneTitle')}
             className={cn('h-9 text-xs', operatorState.tuning && 'text-error aria-pressed:text-tx-fg aria-pressed:bg-tx')}
             onClick={() => void operator.tune(!operatorState.tuning)}
           >
@@ -250,40 +266,72 @@ export function QsoPanel({ onOpenSettings }: { onOpenSettings: () => void }) {
         <div className="flex flex-wrap gap-1">
           <Toggle
             on={settings.autoSeq}
-            title="Contesta solo siguiendo la secuencia del QSO"
+            title={t('digital.qso.autoSeqTitle')}
             onClick={() => operator.updateSettings({ autoSeq: !settings.autoSeq })}
           >
-            Auto secuencia
+            {t('digital.qso.autoSeq')}
           </Toggle>
           <Toggle
             on={settings.callFirst}
-            title="Tras tu CQ contesta sola a la primera estación que te llama"
+            title={t('digital.qso.callFirstTitle')}
             onClick={() => operator.updateSettings({ callFirst: !settings.callFirst })}
           >
             Call 1st
           </Toggle>
           <Toggle
             on={settings.holdTxFreq}
-            title="Al contestar o mover el RX, el tono de TX se queda donde está"
+            title={t('digital.qso.holdTxTitle')}
             onClick={() => operator.updateSettings({ holdTxFreq: !settings.holdTxFreq })}
           >
             Hold Tx Freq
           </Toggle>
+          <Toggle
+            on={settings.autoClearTx}
+            title={t('digital.qso.autoClearTitle')}
+            onClick={() => operator.updateSettings({ autoClearTx: !settings.autoClearTx })}
+          >
+            {t('digital.qso.autoClear')}
+          </Toggle>
+          <Button
+            variant="tile"
+            className="h-8 px-2 text-xs"
+            title={t('digital.qso.txFromRx', { hz: settings.rxHz })}
+            onClick={() => operator.setTxHz(settings.rxHz)}
+          >
+            Tx←Rx
+          </Button>
+          <Button
+            variant="tile"
+            className="h-8 px-2 text-xs"
+            title={t('digital.qso.rxFromTx', { hz: settings.toneHz })}
+            onClick={() => operator.setRxHz(settings.toneHz)}
+          >
+            Rx←Tx
+          </Button>
+          <Button
+            data-testid="digi-find-clear"
+            variant="tile"
+            className="h-8 px-2 text-xs"
+            title={t('digital.qso.findClearTitle')}
+            onClick={operator.findClearTx}
+          >
+            {t('digital.qso.findClear')}
+          </Button>
         </div>
         <div className="flex items-center gap-2 text-xs text-muted">
-          <span>Mi secuencia</span>
-          <span role="group" aria-label="Secuencia de transmisión" className="flex gap-1">
+          <span>{t('digital.qso.mySequence')}</span>
+          <span role="group" aria-label={t('digital.qso.txSequence')} className="flex gap-1">
             <Toggle on={settings.txParity === 'even'} onClick={() => operator.updateSettings({ txParity: 'even' })}>
-              Par :00/:30
+              {t('digital.qso.evenSlots')}
             </Toggle>
             <Toggle on={settings.txParity === 'odd'} onClick={() => operator.updateSettings({ txParity: 'odd' })}>
-              Impar :15/:45
+              {t('digital.qso.oddSlots')}
             </Toggle>
           </span>
         </div>
         {waiting.length > 0 && (
           <div className="flex flex-wrap items-center gap-1 text-xs">
-            <span className="text-muted">En espera:</span>
+            <span className="text-muted">{t('digital.qso.waiting')}</span>
             {waiting.map((call, index) => (
               <span key={call} className="flex items-center bg-instrument font-mono">
                 <span className="px-1.5">
@@ -292,7 +340,7 @@ export function QsoPanel({ onOpenSettings }: { onOpenSettings: () => void }) {
                 </span>
                 <button
                   type="button"
-                  aria-label={`Quitar ${call} de la espera`}
+                  aria-label={t('digital.qso.removeWaiting', { call })}
                   className="px-1 text-muted hover:text-fg"
                   onClick={() => operator.removeWaiting(call)}
                 >
@@ -301,14 +349,15 @@ export function QsoPanel({ onOpenSettings }: { onOpenSettings: () => void }) {
               </span>
             ))}
             <Button variant="tile" className="h-6 px-2 text-xs" onClick={operator.serveNextWaiting}>
-              Atender primero →
+              {t('digital.qso.serveFirst')}
             </Button>
           </div>
         )}
         <div className="mt-auto flex items-center justify-between gap-2">
-          {operatorState.restored && <span className="text-xs text-meter">QSO recuperado</span>}
+          {operatorState.restored && <span className="text-xs text-meter">{t('digital.qso.restored')}</span>}
           <Button variant="navy" className="ml-auto h-8 px-3 text-xs" onClick={operator.prepareLog}>
-            Guardar QSO…
+            {t('digital.qso.saveQso')}
+
           </Button>
         </div>
       </div>

@@ -20,6 +20,8 @@ export type CatCommand =
   | { kind: 'agc-set'; agc: number }
   | { kind: 'nr-get' }
   | { kind: 'nr-set'; nr: number }
+  | { kind: 'menu-get'; item: number }
+  | { kind: 'menu-set'; item: number; value: number }
 
 export type CatResponse =
   | { type: 'identify'; id: string }
@@ -76,6 +78,11 @@ export const encodeFrame = (command: CatCommand): string => {
       return 'RL;'
     case 'nr-set':
       return `RL${String(clampNr(command.nr)).padStart(2, '0')};`
+    // Menú extendido: EXnnn0000; lee el parámetro nnn (número de la LCD) y EXnnn0000v; lo escribe.
+    case 'menu-get':
+      return `EX${String(command.item).padStart(3, '0')}0000;`
+    case 'menu-set':
+      return `EX${String(command.item).padStart(3, '0')}0000${Math.round(command.value)};`
   }
 }
 

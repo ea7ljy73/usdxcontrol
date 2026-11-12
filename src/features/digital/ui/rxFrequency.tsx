@@ -2,9 +2,11 @@ import { useMemo } from 'react'
 import { rxFrequencyDecodes } from '../domain/decodeList'
 import { DecodeTable } from './decodeTable'
 import { useDigital } from './useDigital'
+import { useI18n } from '@/i18n/useI18n'
 
 // Panel "Rx Frequency" de WSJT-X: el QSO en curso sin el ruido del resto de la banda.
 export function RxFrequency() {
+  const { t } = useI18n()
   const { receiverState, operatorState } = useDigital()
   const { rxHz, myCall } = operatorState.settings
   const decodes = useMemo(
@@ -24,7 +26,8 @@ export function RxFrequency() {
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto bg-instrument">
         {decodes.length === 0 ? (
-          <p className="p-3 text-xs text-muted">Aquí aparece lo que se oye en tu frecuencia de RX y lo que te envían.</p>
+          <p className="p-3 text-xs text-muted">{t('digital.rxFrequencyEmpty')}</p>
+
         ) : (
           <DecodeTable decodes={decodes} testId="digi-rx-decodes" label="Rx Frequency" compact />
         )}

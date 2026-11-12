@@ -9,13 +9,15 @@ type SimulatorState = {
   volume: number
   agc: number
   nr: number
+  // Menú 029 DIGI Mode (0/1).
+  digi: number
 }
 
 export type SimulatorOptions = {
   responseDelayMs?: number
   // 'legacy' imita el firmware de serie (hasta v2.1.0): sin EX, SM, GT ni RL, y AG0 en eco.
   firmware?: 'extended' | 'legacy'
-  initial?: Partial<Omit<SimulatorState, 'volume' | 'agc' | 'nr'> & { volume?: number; agc?: number; nr?: number }>
+  initial?: Partial<Omit<SimulatorState, 'volume' | 'agc' | 'nr' | 'digi'> & { volume?: number; agc?: number; nr?: number; digi?: number }>
 }
 
 const buildIfFrame = (frequency: number, mode: RadioMode): string =>
@@ -30,6 +32,7 @@ export const createCatSimulatorLink = (options: SimulatorOptions = {}): RadioLin
     volume: initial.volume ?? 8,
     agc: initial.agc ?? 1,
     nr: initial.nr ?? 0,
+    digi: initial.digi ?? 0,
   }
   let deferredFrequency: number | null = null
   let deferredMode: RadioMode | null = null
@@ -111,6 +114,13 @@ export const createCatSimulatorLink = (options: SimulatorOptions = {}): RadioLin
       return `SM${String(Math.min(30, 8 + wobble)).padStart(5, '0')};`
     }
     if (command === 'EX0000000') return `EX0000000${state.volume};`
+    if (command === 'EX0290000') return `EX0290000${state.digi};`
+    if (/^EX0290000[0-9]+$/.test(command)) {
+      const value = Number(command.slice(9))
+      if (value > 1) return '?;'
+      state.digi = value
+      return ''
+    }
     if (command === 'AG' || command === 'AG0') {
       return `AG${String(state.volume > 15 ? 255 : state.volume * 16).padStart(4, '0')};`
     }

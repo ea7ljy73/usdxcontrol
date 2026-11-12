@@ -5,6 +5,7 @@ import { Field, Select, TextInput } from '@/components/ui/field'
 import { GRID_RE } from '../domain/grid'
 import { isValidCall } from '../domain/messages'
 import { useDigital } from './useDigital'
+import { useI18n } from '@/i18n/useI18n'
 
 type Props = { open: boolean; onOpenChange: (open: boolean) => void }
 
@@ -12,12 +13,13 @@ const WATCHDOG_MIN = [2, 4, 6, 10, 15, 30]
 
 // Ajustes que se ponen una vez: estación y comportamiento de la secuencia.
 export function DigiSettingsDialog({ open, onOpenChange }: Props) {
+  const { t } = useI18n()
   return (
     <Dialog
       open={open}
       onOpenChange={onOpenChange}
-      title="Ajustes FT8"
-      description="Tu estación y cómo se comporta la secuencia."
+      title={t('digital.settings.title')}
+      description={t('digital.settings.description')}
     >
       {open && <SettingsForm onDone={() => onOpenChange(false)} />}
     </Dialog>
@@ -25,6 +27,7 @@ export function DigiSettingsDialog({ open, onOpenChange }: Props) {
 }
 
 function SettingsForm({ onDone }: { onDone: () => void }) {
+  const { t } = useI18n()
   const { operator, operatorState } = useDigital()
   const { settings } = operatorState
   const [myCall, setMyCall] = useState(settings.myCall)
@@ -42,7 +45,7 @@ function SettingsForm({ onDone }: { onDone: () => void }) {
         onDone()
       }}
     >
-      <Field label="Mi indicativo" hint={callOk ? undefined : 'no válido'}>
+      <Field label={t('digital.settings.myCall')} hint={callOk ? undefined : t('digital.settings.invalid')}>
         <TextInput
           autoFocus
           required
@@ -53,7 +56,7 @@ function SettingsForm({ onDone }: { onDone: () => void }) {
           onChange={(event) => setMyCall(event.target.value.toUpperCase().trim())}
         />
       </Field>
-      <Field label="Mi locator" hint={gridOk ? '4 o 6 caracteres' : 'no válido'}>
+      <Field label={t('digital.settings.myGrid')} hint={gridOk ? t('digital.settings.gridHint') : t('digital.settings.invalid')}>
         <TextInput
           aria-invalid={!gridOk}
           placeholder="IM76"
@@ -63,16 +66,16 @@ function SettingsForm({ onDone }: { onDone: () => void }) {
           onChange={(event) => setMyGrid(event.target.value.toUpperCase().trim())}
         />
       </Field>
-      <Field label="Cierre del QSO">
+      <Field label={t('digital.settings.qsoEnd')}>
         <Select
           value={settings.use73 ? '73' : 'RR73'}
           onChange={(event) => operator.updateSettings({ use73: event.target.value === '73' })}
         >
-          <option value="RR73">RR73 (recomendado)</option>
-          <option value="73">RRR y 73</option>
+          <option value="RR73">{t('digital.settings.rr73')}</option>
+          <option value="73">{t('digital.settings.rrr73')}</option>
         </Select>
       </Field>
-      <Field label="Vigilante de TX" hint="sin cambios, deja de transmitir">
+      <Field label={t('digital.settings.watchdog')} hint={t('digital.settings.watchdogHint')}>
         <Select
           value={String(settings.txWatchdogMin)}
           onChange={(event) => operator.updateSettings({ txWatchdogMin: Number(event.target.value) })}
@@ -84,19 +87,20 @@ function SettingsForm({ onDone }: { onDone: () => void }) {
           ))}
         </Select>
       </Field>
-      <Field label="Secuencia de TX" className="col-span-2">
+      <Field label={t('digital.settings.txSequence')} className="col-span-2">
         <Select
           value={settings.autoSlot ? 'auto' : 'manual'}
           onChange={(event) => operator.updateSettings({ autoSlot: event.target.value === 'auto' })}
         >
-          <option value="auto">Automática: la contraria a la estación que contesto</option>
-          <option value="manual">Manual: siempre la elegida (par o impar)</option>
+          <option value="auto">{t('digital.settings.slotAuto')}</option>
+          <option value="manual">{t('digital.settings.slotManual')}</option>
         </Select>
       </Field>
       <div className="col-span-2 flex justify-end">
         <Button type="submit" disabled={!myCall || !callOk || !gridOk} className="h-8 text-xs">
-          Guardar
+          {t('common.save')}
         </Button>
+
       </div>
     </form>
   )

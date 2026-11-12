@@ -210,6 +210,20 @@ describe('radioSession con firmware ampliado (detectado al conectar)', () => {
     expect(link.state().nr).toBe(3)
     session.stop()
   })
+
+  it('lee DIGI Mode (menú 029) al conectar y lo activa o quita por EX', async () => {
+    const { link, session } = await startExtended()
+    expect(session.getSnapshot().digiMode).toBe(false)
+    session.setDigiMode(true)
+    await runUntil(1200)
+    expect(link.state().digi).toBe(1)
+    expect(session.getSnapshot().digiMode).toBe(true)
+    session.setDigiMode(false)
+    await runUntil(1200)
+    expect(link.state().digi).toBe(0)
+    session.stop()
+    expect(session.getSnapshot().digiMode).toBeNull()
+  })
 })
 
 describe('ritmo del sondeo CAT', () => {

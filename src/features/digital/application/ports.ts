@@ -72,7 +72,8 @@ export type PttControl = { on(): void; off(): void }
 export type UtcSource = { fetchUtcMs(): Promise<number> }
 
 export type AudioDevice = { id: string; label: string }
-export type AudioDeviceList = { list(): Promise<{ inputs: AudioDevice[]; outputs: AudioDevice[] }> }
+// defaultOutput: nombre de la salida predeterminada del sistema, si el navegador lo da.
+export type AudioDeviceList = { list(): Promise<{ inputs: AudioDevice[]; outputs: AudioDevice[]; defaultOutput?: string }> }
 
 export type KeyValueStore = {
   get<T>(key: string): T | null

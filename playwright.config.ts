@@ -7,6 +7,8 @@ export default defineConfig({
   reporter: 'html',
   use: {
     baseURL: 'http://localhost:5173',
+    // Las pruebas comprueban los textos en español; e2e/i18n.spec.ts cubre el inglés.
+    locale: 'es-ES',
     trace: 'on-first-retry',
   },
   webServer: {

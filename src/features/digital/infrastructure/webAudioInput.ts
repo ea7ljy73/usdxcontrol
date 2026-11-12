@@ -1,3 +1,4 @@
+import { t } from '@/i18n/i18n'
 import type { DigiAudioInput, AudioInputOptions, MonitorOptions } from '../application/ports'
 
 // Guarda los últimos 40 s: un ciclo FT8 entero más margen para decodificar con calma.
@@ -15,15 +16,15 @@ type SinkAudio = HTMLAudioElement & { setSinkId?: (deviceId: string) => Promise<
 const captureErrorText = (error: unknown): string => {
   const name = error instanceof DOMException ? error.name : ''
   if (name === 'NotAllowedError' || name === 'SecurityError') {
-    return 'Permiso de micrófono denegado: permite el acceso al audio (candado de la barra de direcciones) y vuelve a empezar'
+    return t('errors.audio.denied')
   }
   if (name === 'NotFoundError' || name === 'OverconstrainedError') {
-    return 'No se encuentra la tarjeta de sonido elegida: conéctala o elige otra en Audio de la radio'
+    return t('errors.audio.notFound')
   }
   if (name === 'NotReadableError') {
-    return 'La tarjeta de sonido está en uso por otro programa (WSJT-X, JTDX…): ciérralo y vuelve a empezar'
+    return t('errors.audio.busy')
   }
-  return `No se pudo abrir el audio de la radio${error instanceof Error && error.message ? `: ${error.message}` : ''}`
+  return t('errors.audio.openFailed', { detail: error instanceof Error && error.message ? `: ${error.message}` : '' })
 }
 
 // Captura el audio de la radio (tarjeta de sonido elegida) en un anillo con marca de
@@ -33,7 +34,8 @@ const captureErrorText = (error: unknown): string => {
 // cargar un módulo aparte, como AudioWorklet; para bloques de 85 ms basta.
 export const openWebAudioInput = async ({ deviceId, gain }: AudioInputOptions): Promise<DigiAudioInput> => {
   if (!navigator.mediaDevices?.getUserMedia) {
-    throw new Error('La captura de audio no está disponible en este navegador')
+    throw new Error(t('errors.audio.captureUnavailable'))
+
   }
   const stream = await navigator.mediaDevices
     .getUserMedia({

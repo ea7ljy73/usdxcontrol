@@ -49,7 +49,7 @@ test('el SDR da el espectro de RF y deja de recibir mientras transmite el uSDX',
   await expect(trazo).toHaveAccessibleName('Espectro: solo línea, clic para cambiar')
   await expect.poll(() => spectrumColors(page)).toBeGreaterThan(before + 10)
   await trazo.click()
-  await expect(trazo).toHaveAccessibleName('Espectro: línea con relleno tenue, clic para cambiar')
+  await expect(trazo).toHaveAccessibleName('Espectro: suave, línea con relleno tenue, clic para cambiar')
   await expect.poll(() => spectrumColors(page)).toBeGreaterThan(before + 10)
 
   // PTT del uSDX: el SDR se pausa y vuelve al soltar.

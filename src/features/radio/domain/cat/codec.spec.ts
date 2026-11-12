@@ -64,6 +64,8 @@ describe('parseFrame', () => {
     expect(encodeFrame({ kind: 'nr-get' })).toBe('RL;')
     expect(encodeFrame({ kind: 'nr-set', nr: 4 })).toBe('RL04;')
     expect(encodeFrame({ kind: 'nr-set', nr: 20 })).toBe('RL08;')
+    expect(encodeFrame({ kind: 'menu-get', item: 29 })).toBe('EX0290000;')
+    expect(encodeFrame({ kind: 'menu-set', item: 29, value: 1 })).toBe('EX02900001;')
   })
 
   it('parsea las respuestas del firmware ampliado (S-meter, volumen, AGC, NR y EX)', () => {
@@ -77,6 +79,7 @@ describe('parseFrame', () => {
     expect(parseFrame('GT003;')).toEqual({ type: 'unknown' })
     expect(parseFrame('RL03;')).toEqual({ type: 'nr', nr: 3 })
     expect(parseFrame('RL09;')).toEqual({ type: 'unknown' })
+    expect(parseFrame('EX02900001;')).toEqual({ type: 'menu', item: 29, value: 1 })
     expect(parseFrame('EX0000000;')).toEqual({ type: 'unknown' })
     expect(parseFrame('EX00000008;')).toEqual({ type: 'menu', item: 0, value: 8 })
     expect(parseFrame('EX0000000-1;')).toEqual({ type: 'menu', item: 0, value: -1 })

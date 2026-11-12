@@ -1,3 +1,4 @@
+import { t } from '@/i18n/i18n'
 import type { PskReporterSource } from '../application/ports'
 import { parsePskReports, type PskRawReport, type PskSpot } from '../domain/pskReport'
 
@@ -23,7 +24,7 @@ const jsonp = (url: string): Promise<Response> =>
     }
     const timer = window.setTimeout(() => {
       cleanup()
-      reject(new Error('PSK Reporter no responde: espera unos minutos y vuelve a intentarlo'))
+      reject(new Error(t('errors.pskTimeout')))
     }, TIMEOUT_MS)
     scope[name] = (data: Response) => {
       cleanup()
@@ -31,7 +32,7 @@ const jsonp = (url: string): Promise<Response> =>
     }
     script.onerror = () => {
       cleanup()
-      reject(new Error('PSK Reporter no responde: espera unos minutos y vuelve a intentarlo'))
+      reject(new Error(t('errors.pskTimeout')))
     }
     script.src = `${url}&callback=${name}`
     document.head.appendChild(script)
