@@ -15,6 +15,6 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['src/i18n/testSetup.ts'],
 
-    exclude: [...configDefaults.exclude, 'e2e/**'],
+    exclude: [...configDefaults.exclude, 'e2e/**', 'scripts/capturas/**'],
   },
 })
