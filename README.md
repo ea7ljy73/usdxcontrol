@@ -4,7 +4,7 @@
 
 Control a **uSDX** transceiver from your computer: panadapter and waterfall, VFO A/B, bands, modes, S-meter and PTT over CAT. It includes a complete **FT8/FT4** station (WSJT-X style) and supports an **RTL-SDR** as a panadapter receiver that goes quiet on its own while the uSDX transmits.
 
-![FT8 station](docs/capturas/ft8.png)
+![FT8 station](docs/capturas/en/ft8.png)
 
 ## Downloads
 
@@ -26,7 +26,7 @@ Installers for every version are on **[Releases](https://github.com/ea7ljy73/usd
 
 | Panadapter with an RTL-SDR | SDR settings |
 | --- | --- |
-| ![40 m band spectrum with the SDR](docs/capturas/sdr-espectro.png) | ![SDR receiver dialog](docs/capturas/sdr-ajustes.png) |
+| ![40 m band spectrum with the SDR](docs/capturas/en/sdr-espectro.png) | ![SDR receiver dialog](docs/capturas/en/sdr-ajustes.png) |
 
 ## Features
 
@@ -47,7 +47,9 @@ pnpm install
 pnpm dev            # web version at http://localhost:5173 (?radio=mock to simulate)
 pnpm dev:desktop    # desktop app
 pnpm lint && pnpm test && pnpm test:e2e && pnpm test:desktop
+pnpm capturas       # regenerates the screenshots in docs/capturas/{en,es}
 ```
+
 
 The FT8/FT4 engine is WebAssembly built from [ft8_lib](https://github.com/kgoba/ft8_lib) (MIT). Its source is in `native/ftx/` and it is rebuilt with `native/ftx/build.sh` (needs Docker); the output goes to `src/features/digital/infrastructure/vendor/`.
 

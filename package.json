@@ -20,6 +20,7 @@
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:update": "playwright test --update-snapshots",
     "test:desktop": "electron-vite build && playwright test --project=electron",
+    "capturas": "playwright test -c playwright.capturas.config.ts",
     "licenses:third-party": "node scripts/third-party-licenses.cjs",
     "dist": "node scripts/third-party-licenses.cjs && electron-vite build && electron-builder"
   },

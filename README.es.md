@@ -4,7 +4,7 @@
 
 Control del transceptor **uSDX** desde el ordenador: panadaptador y cascada, VFO A/B, bandas, modos, S-métrico y PTT por CAT. Incluye una estación **FT8/FT4** completa (al estilo WSJT-X) y admite un **RTL-SDR** como receptor de panorámico, que se calla solo cuando el uSDX transmite.
 
-![Estación FT8](docs/capturas/ft8.png)
+![Estación FT8](docs/capturas/es/ft8.png)
 
 ## Descargas
 
@@ -26,7 +26,7 @@ Los instaladores de cada versión están en **[Releases](https://github.com/ea7l
 
 | Panorámico con RTL-SDR | Ajustes del SDR |
 | --- | --- |
-| ![Espectro de la banda de 40 m con el SDR](docs/capturas/sdr-espectro.png) | ![Diálogo del receptor SDR](docs/capturas/sdr-ajustes.png) |
+| ![Espectro de la banda de 40 m con el SDR](docs/capturas/es/sdr-espectro.png) | ![Diálogo del receptor SDR](docs/capturas/es/sdr-ajustes.png) |
 
 ## Qué hace
 
@@ -47,7 +47,9 @@ pnpm install
 pnpm dev            # versión web en http://localhost:5173 (?radio=mock para simular)
 pnpm dev:desktop    # app de escritorio
 pnpm lint && pnpm test && pnpm test:e2e && pnpm test:desktop
+pnpm capturas       # regenera las capturas de docs/capturas/{es,en}
 ```
+
 
 El motor FT8/FT4 es WebAssembly compilado desde [ft8_lib](https://github.com/kgoba/ft8_lib) (MIT). Su fuente está en `native/ftx/` y se recompila con `native/ftx/build.sh` (necesita Docker); el resultado se guarda en `src/features/digital/infrastructure/vendor/`.
 

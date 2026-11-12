@@ -10,6 +10,7 @@ test('se cambia el idioma de la interfaz y se recuerda al recargar', async ({ pa
   await expect(page.locator('html')).toHaveAttribute('lang', 'en')
   await expect(page.getByTestId('connection-status')).toHaveText('Disconnected')
   await expect(page.getByText('Simulated CAT')).toBeAttached()
+  await expect(page.getByText('Press AUDIO to see the spectrum').first()).toBeVisible()
   await page.getByRole('button', { name: 'Connect radio' }).click()
   await expect(page.getByTestId('connection-status')).toHaveText('Connected', { timeout: 5_000 })
   await expect(page.getByRole('group', { name: 'Bands' })).toBeVisible()

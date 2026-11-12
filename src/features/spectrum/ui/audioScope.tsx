@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { cn } from '@/lib/cn'
+import { useI18n } from '@/i18n/useI18n'
 import type { SpectrumFeed } from '../application/ports'
 import { AUDIO_LIMIT_HZ } from '../domain/audioMapping'
 import { frameColumns } from '../domain/columns'
@@ -17,6 +18,7 @@ type Props = {
 }
 
 export function AudioScope({ feed, passbandAudioHz }: Props) {
+  const { t } = useI18n()
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
 
   useEffect(() => {
@@ -98,7 +100,8 @@ export function AudioScope({ feed, passbandAudioHz }: Props) {
         <canvas ref={canvasRef} data-testid="audio-scope" aria-hidden className="absolute inset-0 h-full w-full" />
         {feed === null && (
           <span className="absolute inset-0 flex items-center justify-center text-xs text-muted">
-            Pulsa AUDIO para ver el espectro
+            {t('spectrum.pressAudio')}
+
           </span>
         )}
       </div>

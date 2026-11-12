@@ -78,7 +78,7 @@ Shortcuts do nothing while you are typing in a text field.
 
 ## 4. FT8 / FT4 station
 
-![FT8 station](../capturas/ft8.png)
+![FT8 station](../capturas/en/ft8.png)
 
 Press **FT8** or **FT4** under *Mode*. The digital station replaces the panadapter, puts the radio in USB and tunes it to the band's FT8 frequency. With the extended firmware (v2.2.0 or later) it also turns on **DIGI Mode** on the uSDX (menu 029, flat TX for digital modes); unticking FT8/FT4 turns it off again.
 
@@ -184,7 +184,7 @@ If the browser blocks audio, click anywhere in the window or press **Enable TX**
 
 ## 6. SDR receiver (RTL-SDR)
 
-![40 m spectrum with the SDR](../capturas/sdr-espectro.png)
+![40 m spectrum with the SDR](../capturas/en/sdr-espectro.png)
 
 An RTL-SDR (V3 or clones such as HTOOL) shows the whole band on the panadapter. Audio reception and transmission are still done by the uSDX.
 
@@ -196,7 +196,7 @@ An RTL-SDR (V3 or clones such as HTOOL) shows the whole band on the panadapter. 
 4. Set the **sample rate**, **ppm correction**, **gain** (automatic or manual) and, if you use an upconverter, its frequency in Hz.
 5. Press **Connect SDR**. The status shows *Receiving · <centre frequency>*.
 
-![SDR settings](../capturas/sdr-ajustes.png)
+![SDR settings](../capturas/en/sdr-ajustes.png)
 
 **SDR centring**:
 
