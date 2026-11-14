@@ -142,6 +142,10 @@ test('CQ: la estación simulada contesta, la secuencia avanza y Halt corta la em
   await expect(page.getByRole('status').filter({ hasText: 'QSO con EA3SIM guardado' })).toBeVisible()
   await page.getByRole('button', { name: 'Libro (1)' }).click()
   await expect(page.getByTestId('digi-logbook')).toContainText('EA3SIM')
+  // En el navegador no hay proceso principal: la pestaña online lo explica sin romper nada.
+  await page.getByRole('tab', { name: 'Envío online' }).click()
+  await expect(page.getByTestId('integrations-panel')).toBeVisible()
+  await expect(page.getByText('El envío online solo está disponible en la app de escritorio.')).toBeVisible()
   await page.keyboard.press('Escape')
 
   // Audio de la radio simulada.

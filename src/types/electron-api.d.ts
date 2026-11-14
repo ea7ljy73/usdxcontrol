@@ -1,9 +1,27 @@
+import type {
+  IntegrationService,
+  IntegrationUploadRequest,
+  IntegrationUploadResult,
+  SecureStorageInfo,
+} from './integrations'
+
 export {}
 
 export interface PortInfo {
   path: string
   manufacturer?: string
   serialNumber?: string
+}
+
+export interface IntegrationsBridgeApi {
+  upload(request: IntegrationUploadRequest): Promise<IntegrationUploadResult>
+  test(request: IntegrationUploadRequest): Promise<IntegrationUploadResult>
+  hasSecret(service: IntegrationService): Promise<boolean>
+  setSecret(service: IntegrationService, value: string): Promise<void>
+  clearSecret(service: IntegrationService): Promise<void>
+  secureStorage(): Promise<SecureStorageInfo>
+  detectTqsl(): Promise<string | null>
+  pickTqsl(): Promise<string | null>
 }
 
 export interface RadioBridgeApi {
@@ -23,6 +41,8 @@ export interface RadioBridgeApi {
     read(bytes: number): Promise<Uint8Array>
     close(): Promise<void>
   }
+
+  integrations?: IntegrationsBridgeApi
 }
 
 declare global {

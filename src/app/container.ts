@@ -9,6 +9,8 @@ import { createWebSerialRadioLink } from '@/features/radio/infrastructure/webSer
 import { createDigiClock, type DigiClock } from '@/features/digital/application/digiClock'
 import { createDigiReceiver, type DigiReceiver } from '@/features/digital/application/digiReceiver'
 import { createFt8Operator, type Ft8Operator } from '@/features/digital/application/ft8Operator'
+import { createLogSync, type LogSync } from '@/features/integrations/application/logSync'
+import { integrationsBridge } from '@/features/integrations/infrastructure/bridge'
 import type { AudioDeviceList, DigiTransmitter, KeyValueStore, LogFiles, PskReporterSource, UtcSource } from '@/features/digital/application/ports'
 import { downloadAdif, readAdifFile } from '@/features/digital/infrastructure/adifFile'
 import { encodeFt8 } from '@/features/digital/infrastructure/ft8Encoder'
@@ -43,6 +45,7 @@ type Container = {
   spectrumSimulated: boolean
   spectrumFeeds: SpectrumFeeds
   digital: Digital
+  integrations: LogSync
   sdr: SdrReceiver
 }
 
@@ -109,6 +112,11 @@ const digiReceiver = createDigiReceiver({
     : openWebAudioInput,
 })
 const digiTransmitter = useMock ? createSimulatedTransmitter(loadSimulatedBand) : createWebAudioTransmitter(encodeFt8)
+const online = createLogSync({
+  bridge: integrationsBridge,
+  store: localStore,
+  autoStart: !useMock,
+})
 
 const digital: Digital = {
   clock: digiClock,
@@ -123,6 +131,7 @@ const digital: Digital = {
     logbook: localLogbook,
     dialHz: () => session.getSnapshot().frequency,
     canTransmit: () => session.getSnapshot().linkStatus === 'connected',
+    onLogSaved: (entry) => online.enqueue(entry),
   }),
   utcSource: useMock ? { fetchUtcMs: async () => Date.now() } : httpUtcSource,
   devices: useMock
@@ -148,6 +157,7 @@ const digital: Digital = {
 
 // El operador vigila los ciclos desde el arranque (solo transmite si se le pide).
 digital.operator.start()
+online.setNotifier((text, tone) => digital.operator.notify(text, tone))
 
 // SDR para el panadaptador: RTL-SDR por USB directo (WebUSB) o por red (rtl_tcp, solo en
 // escritorio). En simulación, un SDR que genera IQ con señales de 40 y 20 m.
@@ -174,6 +184,7 @@ const container: Container = {
     rf: null,
   },
   digital,
+  integrations: online,
   sdr,
 }
 

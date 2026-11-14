@@ -2,6 +2,7 @@ import { BrowserWindow, app, ipcMain, session } from 'electron'
 import path from 'node:path'
 import { LOCALES, setLocale, type Locale } from '../i18n/i18n.js'
 
+import { registerIntegrationsIpc } from './integrations.js'
 import { registerRtlTcpIpc } from './rtlTcp.js'
 import { registerRadioIpc } from './serialManager.js'
 
@@ -57,6 +58,7 @@ app.whenReady().then(() => {
     windowRef?.webContents.send(channel, payload)
   })
   registerRtlTcpIpc()
+  registerIntegrationsIpc()
   // La ventana dice en qué idioma está la interfaz; solo se aceptan los idiomas conocidos.
   ipcMain.on('app:locale', (_event, locale: unknown) => {
     if ((LOCALES as readonly unknown[]).includes(locale)) setLocale(locale as Locale)

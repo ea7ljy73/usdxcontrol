@@ -1,21 +1,9 @@
-import { logsToAdif, parseAdif, type AdifLog } from '../domain/adif'
-import { rfMhz, type LogEntry } from '../domain/logbook'
-
-const toAdif = (entry: LogEntry): AdifLog => ({
-  myCall: entry.myCall,
-  hisCall: entry.call,
-  freq: rfMhz(entry),
-  mode: entry.mode,
-  rstSent: entry.rstSent,
-  rstRecv: entry.rstRcvd,
-  date: entry.endedAt.slice(0, 10),
-  time: entry.endedAt.slice(11, 19),
-  notes: [entry.mode, entry.grid && `grid ${entry.grid}`, entry.notes].filter(Boolean).join(' · '),
-})
+import { logEntriesToAdif, parseAdif } from '../domain/adif'
+import type { LogEntry } from '../domain/logbook'
 
 // Descarga el libro en ADIF (para LoTW, QRZ, Log4OM…).
 export const downloadAdif = (entries: LogEntry[], callsign: string) => {
-  const blob = new Blob([logsToAdif(entries.map(toAdif))], { type: 'application/adif;charset=utf-8' })
+  const blob = new Blob([logEntriesToAdif(entries)], { type: 'application/adif;charset=utf-8' })
   const url = URL.createObjectURL(blob)
   const link = document.createElement('a')
   link.href = url

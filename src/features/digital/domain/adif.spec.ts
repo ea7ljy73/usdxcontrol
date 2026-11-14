@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { logsToAdif, parseAdif, type AdifLog } from './adif'
+import { logEntriesToAdif, logEntryToAdif, logsToAdif, parseAdif, type AdifLog } from './adif'
+import type { LogEntry } from './logbook'
 
 const base: AdifLog = {
   myCall: 'EA7LJY',
@@ -40,6 +41,51 @@ describe('logsToAdif', () => {
   it('TIME_ON se normaliza a HHMMSS', () => {
     const out = logsToAdif([base])
     expect(out).toContain('<TIME_ON:6>131400')
+  })
+})
+
+const entry: LogEntry = {
+  id: '2026-08-25T13:15:00.000Z-K1JT',
+  myCall: 'EA7LJY',
+  myGrid: 'IM76HK',
+  call: 'K1JT',
+  grid: 'FN20',
+  dialHz: 14_074_000,
+  toneHz: 1_000,
+  mode: 'FT8',
+  rstSent: '-10',
+  rstRcvd: '-08',
+  startedAt: '2026-08-25T13:14:00.000Z',
+  endedAt: '2026-08-25T13:15:00.000Z',
+  notes: 'prueba',
+}
+
+describe('logEntryToAdif', () => {
+  it('incluye estación, locator, hora de fin y frecuencia real', () => {
+    const out = logEntryToAdif(entry)
+    expect(out).toContain('<CALL:4>K1JT')
+    expect(out).toContain('<STATION_CALLSIGN:6>EA7LJY')
+    expect(out).toContain('<MY_GRIDSQUARE:6>IM76HK')
+    expect(out).toContain('<GRIDSQUARE:4>FN20')
+    expect(out).toContain('<QSO_DATE:8>20260825')
+    expect(out).toContain('<TIME_ON:6>131400')
+    expect(out).toContain('<QSO_DATE_OFF:8>20260825')
+    expect(out).toContain('<TIME_OFF:6>131500')
+    expect(out).toContain('<BAND:3>20M')
+    expect(out).toContain('<FREQ:9>14.075000')
+    expect(out).toContain('<MODE:3>FT8')
+    expect(out).toContain('<RST_SENT:3>-10')
+    expect(out).toContain('<COMMENT:6>prueba')
+    expect(out.endsWith('<EOR>')).toBe(true)
+  })
+
+  it('omite campos vacíos y genera un documento con cabecera', () => {
+    const out = logEntriesToAdif([{ ...entry, myCall: '', myGrid: '', grid: '', notes: '', rstSent: '', rstRcvd: '' }])
+    expect(out).toContain('<ADIF_VER:5>3.1.4')
+    expect(out).toContain('<PROGRAMID:11>uSDXControl')
+    expect(out).not.toContain('<STATION_CALLSIGN:')
+    expect(out).not.toContain('<MY_GRIDSQUARE:')
+    expect(out).not.toContain('<COMMENT:')
   })
 })
 

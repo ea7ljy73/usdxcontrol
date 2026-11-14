@@ -127,6 +127,7 @@ type Options = {
   // Frecuencia de dial de la radio (para el libro) y si se puede transmitir.
   dialHz: () => number | null
   canTransmit: () => boolean
+  onLogSaved?: (entry: LogEntry) => void
   tickMs?: number
 }
 
@@ -143,6 +144,7 @@ export const createFt8Operator = ({
   logbook,
   dialHz,
   canTransmit,
+  onLogSaved,
   tickMs = 200,
 }: Options) => {
   const settings: OperatorSettings = { ...DEFAULT_SETTINGS, ...(store.get<Partial<OperatorSettings>>('digi.settings') ?? {}) }
@@ -717,6 +719,7 @@ export const createFt8Operator = ({
       logbook.save(entries)
       update({ logbook: entries, logDraft: null })
       notify(t('operator.logSaved', { call: saved.call }), 'success')
+      onLogSaved?.(saved)
     },
     discardLog: () => update({ logDraft: null }),
     deleteLogEntry(id: string) {

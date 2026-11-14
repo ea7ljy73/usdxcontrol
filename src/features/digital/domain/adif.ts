@@ -1,3 +1,5 @@
+import type { LogEntry } from './logbook'
+
 export interface AdifLog {
   myCall: string
   hisCall: string
@@ -13,6 +15,42 @@ export interface AdifLog {
 function field(name: string, value: string): string {
   const clean = value.trim()
   return `<${name}:${clean.length}>${clean} `
+}
+
+const utcParts = (iso: string): { date: string; time: string } | null => {
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})/.exec(iso)
+  return match ? { date: `${match[1]}${match[2]}${match[3]}`, time: `${match[4]}${match[5]}${match[6]}` } : null
+}
+
+const optional = (record: string, name: string, value: string | null | undefined): string =>
+  value && value.trim() ? record + field(name, value) : record
+
+/** Un QSO del libro en un registro ADIF completo, con estación, locator y hora de fin. */
+export function logEntryToAdif(entry: LogEntry): string {
+  const mhz = (entry.dialHz + entry.toneHz) / 1e6
+  const band = mhz > 0 ? bandFromFreqMhz(mhz) : null
+  const on = utcParts(entry.startedAt)
+  const off = utcParts(entry.endedAt)
+  let record = ''
+  if (on) record += field('QSO_DATE', on.date) + field('TIME_ON', on.time)
+  if (off) record += field('QSO_DATE_OFF', off.date) + field('TIME_OFF', off.time)
+  record = optional(record, 'CALL', entry.call)
+  record = optional(record, 'STATION_CALLSIGN', entry.myCall)
+  record = optional(record, 'MY_GRIDSQUARE', entry.myGrid)
+  record = optional(record, 'GRIDSQUARE', entry.grid)
+  if (band) record = optional(record, 'BAND', band)
+  if (mhz > 0) record = optional(record, 'FREQ', mhz.toFixed(6))
+  record = optional(record, 'MODE', entry.mode)
+  record = optional(record, 'RST_SENT', entry.rstSent)
+  record = optional(record, 'RST_RCVD', entry.rstRcvd)
+  record = optional(record, 'COMMENT', entry.notes)
+  return `${record}<EOR>`
+}
+
+/** Documento ADIF (cabecera + registros) para subir uno o varios QSO a un logbook online. */
+export function logEntriesToAdif(entries: LogEntry[]): string {
+  const header = '<ADIF_VER:5>3.1.4 <PROGRAMID:11>uSDXControl <EOH>'
+  return `${header}\n${entries.map(logEntryToAdif).join('\n')}\n`
 }
 
 /** Banda ADIF a partir de la frecuencia en MHz (null si no es una banda conocida). */
